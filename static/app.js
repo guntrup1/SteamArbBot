@@ -366,9 +366,14 @@ async function testTelegram() {
   const res = await apiPost('/api/telegram/test', { token, chat_id: chatId });
   showToast(res.success ? '✅ ' + res.message : '❌ ' + res.message, res.success ? 'success' : 'error');
   if (resultEl) {
-    resultEl.innerHTML = res.success
-      ? '<span style="color:var(--green)">✅ Сообщение отправлено</span>'
-      : '<span style="color:var(--red)">❌ ' + (res.message || 'Ошибка') + '</span>';
+    if (res.success) {
+      resultEl.innerHTML = '<span style="color:var(--green)">✅ Сообщение отправлено</span>';
+    } else {
+      const errSpan = document.createElement('span');
+      errSpan.style.color = 'var(--red)';
+      errSpan.textContent = '❌ ' + (res.message || 'Ошибка');
+      resultEl.replaceChildren(errSpan);
+    }
   }
   if (btn) { btn.disabled = false; btn.innerHTML = '📨 Отправить тест'; }
 }
@@ -477,13 +482,21 @@ function updateErrorPanel() {
   if (countEl) countEl.textContent = _errorLog.length;
   const body = document.getElementById('error-log-body');
   if (body) {
-    body.innerHTML = _errorLog.map(e => {
+    body.textContent = '';
+    _errorLog.forEach(e => {
       const color = e.type === 'error' ? 'var(--red)' : 'var(--yellow)';
-      return `<div style="padding:4px 12px;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;gap:8px;align-items:flex-start">
-        <span style="color:var(--text-muted);white-space:nowrap;min-width:55px">${e.time}</span>
-        <span style="color:${color};word-break:break-word">${escapeHtml(e.msg)}</span>
-      </div>`;
-    }).join('');
+      const row = document.createElement('div');
+      row.style.cssText = 'padding:4px 12px;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;gap:8px;align-items:flex-start';
+      const timeSpan = document.createElement('span');
+      timeSpan.style.cssText = 'color:var(--text-muted);white-space:nowrap;min-width:55px';
+      timeSpan.textContent = e.time;
+      const msgSpan = document.createElement('span');
+      msgSpan.style.cssText = `color:${color};word-break:break-word`;
+      msgSpan.textContent = e.msg;
+      row.appendChild(timeSpan);
+      row.appendChild(msgSpan);
+      body.appendChild(row);
+    });
   }
   panel.style.display = _errorLog.length > 0 ? 'flex' : 'none';
 }
