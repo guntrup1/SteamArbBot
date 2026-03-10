@@ -5,7 +5,7 @@ from datetime import datetime
 from steam_bot import database as db
 from steam_bot import market
 from steam_bot import telegram_bot as tg
-from steam_bot.config import STEAM_COMMISSION
+from steam_bot.config import STEAM_COMMISSION, get_currency_symbol
 
 _bot_running = False
 _bot_task = None
@@ -128,7 +128,9 @@ async def process_item(item: dict, mode: str):
     hash_name = item["market_hash_name"]
     app_id = item.get("app_id", 730)
     steam_url = item.get("steam_url", "")
-    currency = int(db.get_setting("steam_currency", "5"))
+    currency_setting = db.get_setting("steam_currency", "5")
+    currency = int(currency_setting)
+    curr_sym = get_currency_symbol(currency_setting)
     threshold = float(db.get_setting("buy_threshold", "17"))
 
     await log(f"🔍 Проверка цены: {item_name}", "info", item_name, mode, "check_price")
@@ -169,12 +171,12 @@ async def process_item(item: dict, mode: str):
         return
 
     balance = await get_balance()
-    await log(f"💰 Баланс: {balance:.2f} | Нужно: {lowest:.2f}", "info", item_name, mode, "balance_check")
+    await log(f"💰 Баланс: {balance:.2f}{curr_sym} | Нужно: {lowest:.2f}{curr_sym}", "info", item_name, mode, "balance_check")
 
     if balance < lowest:
-        msg = f"❌ {item_name}: недостаточно средств (баланс: {balance:.2f}, нужно: {lowest:.2f})"
+        msg = f"❌ {item_name}: недостаточно средств (баланс: {balance:.2f}{curr_sym}, нужно: {lowest:.2f}{curr_sym})"
         await log(msg, "error", item_name, mode, "insufficient_funds")
-        tg_msg = tg.format_error(f"Недостаточно средств для покупки {item_name}\nБаланс: {balance:.2f}, нужно: {lowest:.2f}", item_name, mode)
+        tg_msg = tg.format_error(f"Недостаточно средств для покупки {item_name}\nБаланс: {balance:.2f}{curr_sym}, нужно: {lowest:.2f}{curr_sym}", item_name, mode)
         await send_tg(tg_msg)
         return
 
@@ -196,7 +198,7 @@ async def process_item(item: dict, mode: str):
         await asyncio.sleep(0.5)
         new_balance = await deduct_balance(lowest)
         await log(f"✅ [ТЕСТ] Покупка {item_name} симулирована за {lowest_raw}", "success", item_name, mode, "buy_success")
-        await log(f"💰 [ТЕСТ] Новый виртуальный баланс: {new_balance:.2f}", "info", item_name, mode, "balance_update")
+        await log(f"💰 [ТЕСТ] Новый виртуальный баланс: {new_balance:.2f}{curr_sym}", "info", item_name, mode, "balance_update")
 
         db.add_trade(
             item_name=item_name, market_hash_name=hash_name,
@@ -205,11 +207,11 @@ async def process_item(item: dict, mode: str):
         )
         _buys_this_hour.append(datetime.now())
 
-        tg_msg = tg.format_purchase(item_name, lowest, median, actual_profit, new_balance, mode, steam_url)
+        tg_msg = tg.format_purchase(item_name, lowest, median, actual_profit, new_balance, mode, steam_url, curr_sym)
         await send_tg(tg_msg)
 
         await asyncio.sleep(1)
-        await log(f"📤 [ТЕСТ] Выставляем {item_name} на продажу за {sell_price:.2f}", "info", item_name, mode, "listing")
+        await log(f"📤 [ТЕСТ] Выставляем {item_name} на продажу за {sell_price:.2f}{curr_sym}", "info", item_name, mode, "listing")
         await asyncio.sleep(0.5)
 
         db.add_trade(
@@ -220,10 +222,10 @@ async def process_item(item: dict, mode: str):
         )
 
         final_balance = await add_balance(sell_net)
-        await log(f"✅ [ТЕСТ] {item_name} выставлен на продажу за {sell_price:.2f}. Прибыль: {actual_profit:.2f}", "success", item_name, mode, "listed")
-        await log(f"💰 [ТЕСТ] Итоговый виртуальный баланс: {final_balance:.2f}", "info", item_name, mode, "balance_update")
+        await log(f"✅ [ТЕСТ] {item_name} выставлен на продажу за {sell_price:.2f}{curr_sym}. Прибыль: {actual_profit:.2f}{curr_sym}", "success", item_name, mode, "listed")
+        await log(f"💰 [ТЕСТ] Итоговый виртуальный баланс: {final_balance:.2f}{curr_sym}", "info", item_name, mode, "balance_update")
 
-        tg_sell = tg.format_sale(item_name, sell_price, lowest, actual_profit, final_balance, mode)
+        tg_sell = tg.format_sale(item_name, sell_price, lowest, actual_profit, final_balance, mode, curr_sym)
         await send_tg(tg_sell)
 
     else:
@@ -233,7 +235,7 @@ async def process_item(item: dict, mode: str):
         if success:
             new_balance = await get_real_steam_balance()
             await log(f"✅ [LIVE] Покупка {item_name} ВЫПОЛНЕНА за {lowest_raw}", "success", item_name, mode, "buy_success")
-            await log(f"💰 [LIVE] Реальный баланс: {new_balance:.2f}", "info", item_name, mode, "balance_update")
+            await log(f"💰 [LIVE] Реальный баланс: {new_balance:.2f}{curr_sym}", "info", item_name, mode, "balance_update")
 
             db.add_trade(
                 item_name=item_name, market_hash_name=hash_name,
@@ -242,11 +244,11 @@ async def process_item(item: dict, mode: str):
             )
             _buys_this_hour.append(datetime.now())
 
-            tg_msg = tg.format_purchase(item_name, lowest, median, actual_profit, new_balance, mode, steam_url)
+            tg_msg = tg.format_purchase(item_name, lowest, median, actual_profit, new_balance, mode, steam_url, curr_sym)
             await send_tg(tg_msg)
 
             await asyncio.sleep(2)
-            await log(f"📤 [LIVE] Выставляем {item_name} на продажу за {sell_price:.2f}...", "info", item_name, mode, "listing")
+            await log(f"📤 [LIVE] Выставляем {item_name} на продажу за {sell_price:.2f}{curr_sym}...", "info", item_name, mode, "listing")
             sell_ok, sell_err = await execute_real_sell(item, sell_price)
 
             if sell_ok:
@@ -257,8 +259,8 @@ async def process_item(item: dict, mode: str):
                     market_price=median, profit=actual_profit, profit_after_fee=actual_profit,
                     status="listed", test_mode=False
                 )
-                await log(f"✅ [LIVE] {item_name} выставлен на продажу за {sell_price:.2f}", "success", item_name, mode, "listed")
-                tg_sell = tg.format_sale(item_name, sell_price, lowest, actual_profit, final_balance, mode)
+                await log(f"✅ [LIVE] {item_name} выставлен на продажу за {sell_price:.2f}{curr_sym}", "success", item_name, mode, "listed")
+                tg_sell = tg.format_sale(item_name, sell_price, lowest, actual_profit, final_balance, mode, curr_sym)
                 await send_tg(tg_sell)
             else:
                 await log(f"❌ [LIVE] Ошибка выставления на продажу {item_name}: {sell_err}", "error", item_name, mode, "list_error")
@@ -297,14 +299,15 @@ async def bot_loop():
     mode = get_current_mode()
     interval = int(db.get_setting("check_interval", "15"))
     balance = await get_balance()
+    curr_sym = get_currency_symbol(db.get_setting("steam_currency", "5"))
 
-    await log(f"🚀 Бот запущен в режиме {mode} | Баланс: {balance:.2f}", "success", mode=mode, stage="start")
+    await log(f"🚀 Бот запущен в режиме {mode} | Баланс: {balance:.2f}{curr_sym}", "success", mode=mode, stage="start")
 
     token = db.get_setting("telegram_bot_token", "")
     chat_id = db.get_setting("telegram_chat_id", "")
     stats = db.get_statistics()
     if token and chat_id:
-        await send_tg(tg.format_bot_started(mode, balance))
+        await send_tg(tg.format_bot_started(mode, balance, curr_sym))
 
     db.add_balance_history(balance, mode)
     cycle = 0
@@ -312,6 +315,7 @@ async def bot_loop():
     while _bot_running:
         cycle += 1
         items = db.get_items()
+        curr_sym = get_currency_symbol(db.get_setting("steam_currency", "5"))
 
         if not items:
             await log("⚠️ Нет предметов для мониторинга. Добавьте предметы в настройках.", "warning", mode=mode, stage="no_items")
@@ -336,9 +340,10 @@ async def bot_loop():
     mode = get_current_mode()
     balance = await get_balance()
     stats = db.get_statistics()
-    await log(f"🛑 Бот остановлен | Баланс: {balance:.2f}", "warning", mode=mode, stage="stopped")
+    curr_sym = get_currency_symbol(db.get_setting("steam_currency", "5"))
+    await log(f"🛑 Бот остановлен | Баланс: {balance:.2f}{curr_sym}", "warning", mode=mode, stage="stopped")
     if token and chat_id:
-        await send_tg(tg.format_bot_stopped(mode, stats))
+        await send_tg(tg.format_bot_stopped(mode, stats, curr_sym))
 
 
 async def start_bot() -> bool:

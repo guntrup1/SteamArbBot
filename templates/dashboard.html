@@ -44,7 +44,7 @@
     <div class="flex gap-8" style="align-items:center">
       <span class="text-muted" style="font-size:13px">Баланс:</span>
       <span class="fw-bold" style="font-size:18px;color:var(--blue)" id="balance-value">
-        {{ "%.2f"|format(balance) }} ₽
+        {{ "%.2f"|format(balance) }} {{ currency_symbol }}
       </span>
       {% if mode == 'TEST' %}<span class="badge test">ВИРТУАЛЬНЫЙ</span>{% else %}<span class="badge live">РЕАЛЬНЫЙ</span>{% endif %}
     </div>
@@ -56,7 +56,7 @@
   </div>
   {% else %}
   <div class="alert alert-info mb-16">
-    🧪 <div><strong>Тестовый режим:</strong> Бот использует виртуальный баланс {{ "%.2f"|format(balance) }} ₽. Все расчёты реальные, но транзакции не выполняются. Переключитесь в LIVE для реальной торговли.</div>
+    🧪 <div><strong>Тестовый режим:</strong> Бот использует виртуальный баланс {{ "%.2f"|format(balance) }} {{ currency_symbol }}. Все расчёты реальные, но транзакции не выполняются. Переключитесь в LIVE для реальной торговли.</div>
   </div>
   {% endif %}
 
@@ -65,16 +65,16 @@
     <div class="stat-card">
       <div class="stat-label">💰 Дневная прибыль</div>
       <div class="stat-value {% if (stats_test.daily_profit or 0) + (stats_live.daily_profit or 0) >= 0 %}green{% else %}red{% endif %}" id="daily-profit">
-        {{ "%.2f"|format((stats_test.daily_profit or 0) + (stats_live.daily_profit or 0)) }} ₽
+        {{ "%.2f"|format((stats_test.daily_profit or 0) + (stats_live.daily_profit or 0)) }} {{ currency_symbol }}
       </div>
-      <div class="stat-sub">Тест: {{ "%.2f"|format(stats_test.daily_profit or 0) }} ₽ / Live: {{ "%.2f"|format(stats_live.daily_profit or 0) }} ₽</div>
+      <div class="stat-sub">Тест: {{ "%.2f"|format(stats_test.daily_profit or 0) }} {{ currency_symbol }} / Live: {{ "%.2f"|format(stats_live.daily_profit or 0) }} {{ currency_symbol }}</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">📈 Общая прибыль</div>
       <div class="stat-value {% if (stats_test.total_profit or 0) + (stats_live.total_profit or 0) >= 0 %}green{% else %}red{% endif %}" id="total-profit">
-        {{ "%.2f"|format((stats_test.total_profit or 0) + (stats_live.total_profit or 0)) }} ₽
+        {{ "%.2f"|format((stats_test.total_profit or 0) + (stats_live.total_profit or 0)) }} {{ currency_symbol }}
       </div>
-      <div class="stat-sub">Тест: {{ "%.2f"|format(stats_test.total_profit or 0) }} ₽ / Live: {{ "%.2f"|format(stats_live.total_profit or 0) }} ₽</div>
+      <div class="stat-sub">Тест: {{ "%.2f"|format(stats_test.total_profit or 0) }} {{ currency_symbol }} / Live: {{ "%.2f"|format(stats_live.total_profit or 0) }} {{ currency_symbol }}</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">🔄 Всего сделок</div>
@@ -155,9 +155,9 @@
                 <tr>
                   <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t.item_name }}</td>
                   <td><span class="badge {{ t.trade_type }}">{{ 'ПОКУПКА' if t.trade_type == 'buy' else 'ПРОДАЖА' }}</span></td>
-                  <td>{{ "%.2f"|format(t.buy_price or t.sell_price or 0) }} ₽</td>
+                  <td>{{ "%.2f"|format(t.buy_price or t.sell_price or 0) }} {{ currency_symbol }}</td>
                   <td {% if t.profit_after_fee and t.profit_after_fee > 0 %}class="text-green"{% elif t.profit_after_fee %}class="text-red"{% endif %}>
-                    {{ "%.2f"|format(t.profit_after_fee or 0) }} ₽
+                    {{ "%.2f"|format(t.profit_after_fee or 0) }} {{ currency_symbol }}
                   </td>
                   <td><span class="badge {{ 'test' if t.test_mode else 'live' }}">{{ 'ТЕСТ' if t.test_mode else 'LIVE' }}</span></td>
                   <td class="text-muted" style="font-size:11px">{{ t.created_at[:16] if t.created_at else '—' }}</td>
@@ -209,6 +209,7 @@
 <div id="toast-container"></div>
 <script src="/static/app.js"></script>
 <script>
+  window.CURRENCY_SYMBOL = "{{ currency_symbol }}";
   window._botRunning = {{ 'true' if is_running else 'false' }};
 
   // Scroll logs to bottom on load

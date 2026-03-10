@@ -106,7 +106,7 @@ function updateBotStatusUI(running, mode, balance) {
     modeBadge.innerHTML = `<span class="dot ${running ? (mode === 'LIVE' ? 'red' : 'green') : 'gray'}"></span> ${mode}`;
   }
   if (balanceEl && balance !== undefined) {
-    balanceEl.textContent = `${balance.toFixed(2)} ₽`;
+    balanceEl.textContent = `${balance.toFixed(2)} ${window.CURRENCY_SYMBOL || '₽'}`;
   }
 }
 
@@ -359,7 +359,7 @@ function setEl(id, val) {
 }
 
 function formatMoney(v) {
-  return (v || 0).toFixed(2) + ' ₽';
+  return (v || 0).toFixed(2) + ' ' + (window.CURRENCY_SYMBOL || '₽');
 }
 
 function escapeHtml(str) {

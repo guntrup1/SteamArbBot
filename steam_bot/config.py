@@ -37,6 +37,20 @@ STEAM_LISTINGS_API = "https://steamcommunity.com/market/listings/"
 STEAM_SEARCH_API = "https://steamcommunity.com/market/search/render/"
 STEAM_BUY_API = "https://steamcommunity.com/market/buylisting/"
 
+CURRENCY_INFO = {
+    "1":  {"symbol": "$",  "code": "USD", "name": "Доллар США"},
+    "3":  {"symbol": "€",  "code": "EUR", "name": "Евро"},
+    "5":  {"symbol": "₽",  "code": "RUB", "name": "Рубль"},
+    "18": {"symbol": "₴",  "code": "UAH", "name": "Гривна"},
+    "2":  {"symbol": "£",  "code": "GBP", "name": "Фунт стерлингов"},
+}
+
+def get_currency_symbol(currency_code: str) -> str:
+    return CURRENCY_INFO.get(str(currency_code), {}).get("symbol", "₽")
+
+def get_currency_code(currency_code: str) -> str:
+    return CURRENCY_INFO.get(str(currency_code), {}).get("code", "RUB")
+
 LOG_LEVELS = {
     "info": "ℹ️",
     "success": "✅",

@@ -311,9 +311,9 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label">Виртуальный баланс для тестового режима (₽)</label>
+            <label class="form-label">Виртуальный баланс для тестового режима ({{ currency_info.code }})</label>
             <input type="number" name="virtual_balance" class="form-control" value="{{ settings.virtual_balance or '1000' }}" min="100" step="100">
-            <div class="form-hint">Сумма для симуляции в тестовом режиме. Текущий виртуальный баланс: <strong>{{ settings.current_virtual_balance or '1000' }} ₽</strong></div>
+            <div class="form-hint">Сумма для симуляции в тестовом режиме. Текущий виртуальный баланс: <strong>{{ settings.current_virtual_balance or '1000' }} {{ currency_symbol }}</strong></div>
           </div>
 
           <button type="button" class="btn btn-ghost btn-sm" onclick="resetVirtualBalance()">🔄 Сбросить виртуальный баланс</button>
@@ -388,6 +388,7 @@
 <div id="toast-container"></div>
 <script src="/static/app.js"></script>
 <script>
+  window.CURRENCY_SYMBOL = "{{ currency_symbol }}";
   document.addEventListener('DOMContentLoaded', () => {
     // Show selected item preview if already selected
     const previewEl = document.getElementById('selected-item-preview');

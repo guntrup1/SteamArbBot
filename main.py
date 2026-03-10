@@ -10,7 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from steam_bot import database as db
 from steam_bot import market as mkt
 from steam_bot import trading
-from steam_bot.config import SESSION_SECRET, HOST, PORT
+from steam_bot.config import SESSION_SECRET, HOST, PORT, get_currency_symbol, CURRENCY_INFO
 
 db.init_db()
 
@@ -34,6 +34,9 @@ async def dashboard(request: Request):
         balance = await trading.get_real_steam_balance()
     stats_test = db.get_statistics(test_mode=True)
     stats_live = db.get_statistics(test_mode=False)
+    currency_code = settings.get("steam_currency", "5")
+    currency_symbol = get_currency_symbol(currency_code)
+    currency_info = CURRENCY_INFO.get(currency_code, CURRENCY_INFO["5"])
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "settings": settings,
@@ -45,6 +48,8 @@ async def dashboard(request: Request):
         "balance": balance,
         "stats_test": stats_test,
         "stats_live": stats_live,
+        "currency_symbol": currency_symbol,
+        "currency_info": currency_info,
     })
 
 
@@ -53,11 +58,17 @@ async def settings_page(request: Request):
     settings = db.get_all_settings()
     items = db.get_items()
     mode = "TEST" if settings.get("test_mode", "1") == "1" else "LIVE"
+    currency_code = settings.get("steam_currency", "5")
+    currency_symbol = get_currency_symbol(currency_code)
+    currency_info = CURRENCY_INFO.get(currency_code, CURRENCY_INFO["5"])
     return templates.TemplateResponse("settings.html", {
         "request": request,
         "settings": settings,
         "items": items,
         "mode": mode,
+        "currency_symbol": currency_symbol,
+        "currency_info": currency_info,
+        "currency_info_all": CURRENCY_INFO,
     })
 
 
