@@ -260,6 +260,46 @@ async def websocket_endpoint(websocket: WebSocket):
         trading.unregister_ws_client(websocket)
 
 
+@app.get("/scanner", response_class=HTMLResponse)
+async def scanner_page(request: Request):
+    settings = db.get_all_settings()
+    currency_code = settings.get("steam_currency", "5")
+    currency_symbol = get_currency_symbol(currency_code)
+    return templates.TemplateResponse("scanner.html", {
+        "request": request,
+        "settings": settings,
+        "currency_symbol": currency_symbol,
+    })
+
+
+@app.post("/api/scanner/scan")
+async def scanner_scan(request: Request):
+    data = await request.json()
+    query = data.get("query", "").strip()
+    app_id = int(data.get("app_id", 730))
+    min_price_usd = float(data.get("min_price_usd", 1.0))
+    threshold_pct = float(data.get("threshold_pct", 17.0))
+    count = min(int(data.get("count", 20)), 50)
+    settings = db.get_all_settings()
+    currency = int(settings.get("steam_currency", "5"))
+    if not query:
+        query = ""
+    results = await mkt.scan_market(
+        query=query, app_id=app_id, currency=currency,
+        min_price_usd=min_price_usd, threshold_pct=threshold_pct, count=count
+    )
+    return JSONResponse({"success": True, "results": results, "count": len(results)})
+
+
+@app.get("/api/logs/api")
+async def get_api_logs_endpoint(limit: int = 200):
+    logs = db.get_api_logs(limit)
+    for log_entry in logs:
+        if log_entry.get("created_at"):
+            log_entry["created_at"] = str(log_entry["created_at"])
+    return JSONResponse({"success": True, "logs": logs})
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host=HOST, port=PORT, reload=False)

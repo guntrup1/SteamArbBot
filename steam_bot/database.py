@@ -74,6 +74,18 @@ def init_db():
         )
     """)
 
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS api_logs (
+            id SERIAL PRIMARY KEY,
+            endpoint TEXT NOT NULL,
+            params TEXT,
+            status_code INTEGER,
+            response TEXT,
+            error TEXT,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
+
     defaults = {
         "steam_api_key": "",
         "steam_login": "",
@@ -257,3 +269,25 @@ def add_balance_history(balance, mode):
     c.execute("INSERT INTO balance_history (balance, mode) VALUES (%s, %s)", (balance, mode))
     conn.commit()
     conn.close()
+
+
+def add_api_log(endpoint: str, params: dict, status: int, response: dict, error: str = None):
+    conn = get_connection()
+    c = conn.cursor()
+    import json as _json
+    c.execute(
+        "INSERT INTO api_logs (endpoint, params, status_code, response, error) VALUES (%s, %s, %s, %s, %s)",
+        (endpoint, _json.dumps(params, ensure_ascii=False), status,
+         _json.dumps(response, ensure_ascii=False) if response else None, error)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_api_logs(limit=200):
+    conn = get_connection()
+    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    c.execute("SELECT * FROM (SELECT * FROM api_logs ORDER BY id DESC LIMIT %s) sub ORDER BY id ASC", (limit,))
+    rows = c.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]

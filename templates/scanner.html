@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Steam Market Bot — Сканер</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <span class="navbar-brand">🤖 Steam Bot</span>
+  <div class="navbar-nav">
+    <a href="/" class="nav-link">📊 Dashboard</a>
+    <a href="/scanner" class="nav-link active">🔍 Сканер</a>
+    <a href="/settings" class="nav-link">⚙️ Настройки</a>
+  </div>
+  <div class="navbar-right">
+    <span style="font-size:13px;color:var(--text-muted)">Валюта: {{ currency_symbol }}</span>
+  </div>
+</nav>
+
+<div class="container">
+
+  <div class="mb-16">
+    <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">🔍 Сканер рынка</h2>
+    <p class="text-muted" style="font-size:13px">Поиск ходовых предметов с потенциалом для торговли по вашей стратегии (скидка ≥ порогу от медианной цены)</p>
+  </div>
+
+  <!-- ── FORM ── -->
+  <div class="card mb-16">
+    <div class="card-header">⚙️ Параметры сканирования</div>
+    <div class="card-body">
+      <div class="grid-2" style="gap:12px;margin-bottom:12px">
+        <div>
+          <label class="form-label">Поисковый запрос</label>
+          <input type="text" id="scan-query" class="form-control" placeholder="Knife, AK-47, Dragon Lore... (пусто = популярные)" value="">
+        </div>
+        <div>
+          <label class="form-label">Игра</label>
+          <select id="scan-appid" class="form-control">
+            <option value="730">Counter-Strike 2</option>
+            <option value="570">Dota 2</option>
+            <option value="440">Team Fortress 2</option>
+            <option value="252490">Rust</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Мин. цена (USD)</label>
+          <input type="number" id="scan-min-price" class="form-control" min="0.01" step="0.1" value="1.0">
+        </div>
+        <div>
+          <label class="form-label">Порог скидки (%)</label>
+          <input type="number" id="scan-threshold" class="form-control" min="5" max="80" step="1" value="17">
+        </div>
+        <div>
+          <label class="form-label">Количество предметов для анализа</label>
+          <select id="scan-count" class="form-control">
+            <option value="10">10 предметов</option>
+            <option value="20" selected>20 предметов</option>
+            <option value="30">30 предметов</option>
+            <option value="50">50 предметов</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:flex-end">
+          <button class="btn btn-blue" id="scan-btn" onclick="startScan()" style="width:100%">
+            🔍 Запустить сканирование
+          </button>
+        </div>
+      </div>
+
+      <div id="scan-progress" style="display:none">
+        <div style="background:var(--bg-card2);border-radius:6px;padding:12px;margin-top:8px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <span class="spinner" style="border-color:var(--blue);border-top-color:transparent"></span>
+            <span id="scan-status-text" class="text-muted" style="font-size:13px">Сканирование...</span>
+          </div>
+          <div style="background:var(--border);border-radius:4px;height:4px;overflow:hidden">
+            <div id="scan-progress-bar" style="background:var(--blue);height:100%;width:0%;transition:width 0.3s"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="scan-last-updated" style="display:none;margin-top:8px;font-size:12px;color:var(--text-muted)"></div>
+    </div>
+  </div>
+
+  <!-- ── RESULTS ── -->
+  <div class="card mb-16" id="results-card" style="display:none">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+      <span>📊 Результаты сканирования</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span id="results-summary" class="badge" style="background:var(--bg-card2)"></span>
+        <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="only-profitable" onchange="filterResults()" style="cursor:pointer">
+          Только прибыльные
+        </label>
+        <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px" onclick="startScan()">↻ Обновить</button>
+      </div>
+    </div>
+    <div class="card-body" style="padding:0;overflow-x:auto">
+      <table class="scanner-table" id="results-table">
+        <thead>
+          <tr>
+            <th style="width:40px"></th>
+            <th>Предмет</th>
+            <th>Мин. цена</th>
+            <th>Медиана</th>
+            <th>Скидка</th>
+            <th>Чистая прибыль</th>
+            <th>Объём продаж</th>
+            <th>Лотов</th>
+            <th style="min-width:200px">История (7 дней)</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody id="results-tbody"></tbody>
+      </table>
+      <div id="no-results" style="display:none;padding:32px;text-align:center;color:var(--text-muted)">
+        <div style="font-size:32px;margin-bottom:8px">🔎</div>
+        <div>Ничего не найдено по заданным критериям</div>
+        <div style="font-size:12px;margin-top:4px">Попробуйте изменить порог скидки или минимальную цену</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── API LOGS ── -->
+  <div class="card">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+      <span>📋 API Логи Steam запросов</span>
+      <div style="display:flex;gap:8px">
+        <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="api-log-errors-only" onchange="renderApiLogs()" style="cursor:pointer">
+          Только ошибки
+        </label>
+        <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px" onclick="loadApiLogs()">↻</button>
+      </div>
+    </div>
+    <div class="card-body" style="padding:0;max-height:400px;overflow-y:auto" id="api-logs-container">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead style="position:sticky;top:0;background:var(--bg-card2)">
+          <tr>
+            <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border)">Время</th>
+            <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border)">Эндпоинт</th>
+            <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border)">Статус</th>
+            <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border)">Параметры</th>
+            <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border)">Ответ / Ошибка</th>
+          </tr>
+        </thead>
+        <tbody id="api-logs-tbody">
+          <tr><td colspan="5" style="padding:24px;text-align:center;color:var(--text-muted)">Загрузка...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast-container" style="position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px"></div>
+
+<script>
+let _allResults = [];
+
+function showToast(msg, type = 'info') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.classList.add('show'), 10);
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3500);
+}
+
+async function startScan() {
+  const btn = document.getElementById('scan-btn');
+  const progress = document.getElementById('scan-progress');
+  const statusText = document.getElementById('scan-status-text');
+  const progressBar = document.getElementById('scan-progress-bar');
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Сканирование...';
+  progress.style.display = 'block';
+  progressBar.style.width = '10%';
+  statusText.textContent = 'Запрос к Steam Market API...';
+
+  const query = document.getElementById('scan-query').value.trim();
+  const appId = parseInt(document.getElementById('scan-appid').value);
+  const minPrice = parseFloat(document.getElementById('scan-min-price').value) || 1.0;
+  const threshold = parseFloat(document.getElementById('scan-threshold').value) || 17.0;
+  const count = parseInt(document.getElementById('scan-count').value) || 20;
+
+  const progressInterval = setInterval(() => {
+    const cur = parseFloat(progressBar.style.width);
+    if (cur < 85) {
+      progressBar.style.width = (cur + Math.random() * 8) + '%';
+      const phase = cur < 30 ? 'Поиск предметов...' : cur < 60 ? 'Получение цен...' : 'Анализ истории...';
+      statusText.textContent = phase;
+    }
+  }, 800);
+
+  try {
+    const res = await fetch('/api/scanner/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, app_id: appId, min_price_usd: minPrice, threshold_pct: threshold, count })
+    });
+    const data = await res.json();
+    clearInterval(progressInterval);
+    progressBar.style.width = '100%';
+    statusText.textContent = `Найдено ${data.results?.length || 0} предметов`;
+
+    if (data.success) {
+      _allResults = data.results || [];
+      renderResults(_allResults);
+      document.getElementById('scan-last-updated').style.display = 'block';
+      document.getElementById('scan-last-updated').textContent = `Обновлено: ${new Date().toLocaleTimeString('ru-RU')} · Всего найдено: ${_allResults.length}`;
+    } else {
+      showToast('Ошибка сканирования', 'error');
+    }
+  } catch (e) {
+    clearInterval(progressInterval);
+    showToast('Ошибка: ' + e.message, 'error');
+  } finally {
+    setTimeout(() => {
+      progress.style.display = 'none';
+      progressBar.style.width = '0%';
+    }, 1000);
+    btn.disabled = false;
+    btn.innerHTML = '🔍 Запустить сканирование';
+    loadApiLogs();
+  }
+}
+
+function filterResults() {
+  const onlyProfitable = document.getElementById('only-profitable').checked;
+  const filtered = onlyProfitable ? _allResults.filter(r => r.is_profitable) : _allResults;
+  renderResults(filtered);
+}
+
+function renderResults(results) {
+  const card = document.getElementById('results-card');
+  const tbody = document.getElementById('results-tbody');
+  const noResults = document.getElementById('no-results');
+  const summary = document.getElementById('results-summary');
+
+  card.style.display = 'block';
+
+  const profitable = results.filter(r => r.is_profitable).length;
+  const withDiscount = results.filter(r => r.has_discount).length;
+  summary.textContent = `${results.length} предметов · ${withDiscount} со скидкой · ${profitable} прибыльных`;
+
+  if (results.length === 0) {
+    tbody.innerHTML = '';
+    noResults.style.display = 'block';
+    return;
+  }
+  noResults.style.display = 'none';
+
+  tbody.innerHTML = results.map(item => {
+    const discountColor = item.is_profitable ? 'var(--green)' : item.has_discount ? 'var(--yellow)' : 'var(--text-muted)';
+    const discountBg = item.is_profitable ? 'rgba(63,185,80,0.1)' : item.has_discount ? 'rgba(210,153,34,0.1)' : '';
+    const profitColor = item.net_profit_pct > 0 ? 'var(--green)' : 'var(--text-muted)';
+
+    const h = item.history || {};
+    const weekTotal = h.week_total || 0;
+    const atDiscount = h.at_discount || 0;
+    const atMedian = h.at_median_or_above || 0;
+    const histBar = weekTotal > 0 ? `
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">
+        📦 ${weekTotal} сделок за 7 дней
+      </div>
+      <div style="display:flex;gap:4px;align-items:center;font-size:11px">
+        <div style="width:${Math.round(atDiscount/weekTotal*100)}%;min-width:${atDiscount>0?'4px':'0'};height:8px;background:var(--green);border-radius:2px" title="По скидке: ${atDiscount}"></div>
+        <div style="width:${Math.round(atMedian/weekTotal*100)}%;min-width:${atMedian>0?'4px':'0'};height:8px;background:var(--blue);border-radius:2px" title="По медиане: ${atMedian}"></div>
+        <div style="flex:1;height:8px;background:var(--border);border-radius:2px"></div>
+      </div>
+      <div style="display:flex;gap:12px;font-size:11px;margin-top:3px">
+        <span style="color:var(--green)">↓${atDiscount} скидка</span>
+        <span style="color:var(--blue)">↑${atMedian} медиана</span>
+      </div>` :
+      `<span style="color:var(--text-muted);font-size:11px">История недоступна</span>`;
+
+    const imgHtml = item.icon_url
+      ? `<img src="${item.icon_url}" style="width:32px;height:32px;object-fit:contain;border-radius:4px" onerror="this.style.display='none'">`
+      : `<div style="width:32px;height:32px;background:var(--bg-card2);border-radius:4px"></div>`;
+
+    const alreadyTracked = false;
+
+    return `<tr style="border-bottom:1px solid var(--border);${item.is_profitable ? 'background:rgba(63,185,80,0.03)' : ''}">
+      <td style="padding:10px 12px">${imgHtml}</td>
+      <td style="padding:10px 12px">
+        <div style="font-weight:600;margin-bottom:2px;font-size:13px">${escHtml(item.name)}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${item.app_id === 730 ? 'CS2' : item.app_id === 570 ? 'Dota 2' : 'TF2'}</div>
+      </td>
+      <td style="padding:10px 12px;font-weight:600">${escHtml(item.lowest_price_raw || item.lowest_price.toFixed(2))}</td>
+      <td style="padding:10px 12px;color:var(--text-muted)">${escHtml(item.median_price_raw || item.median_price.toFixed(2))}</td>
+      <td style="padding:10px 12px">
+        <span style="background:${discountBg};color:${discountColor};font-weight:700;padding:3px 8px;border-radius:12px;font-size:13px">
+          ${item.discount_pct.toFixed(1)}%
+        </span>
+      </td>
+      <td style="padding:10px 12px;color:${profitColor};font-weight:600">
+        ${item.net_profit_pct > 0 ? '+' : ''}${item.net_profit_pct.toFixed(1)}%
+        <div style="font-size:11px;color:var(--text-muted)">${item.profit > 0 ? '+' : ''}${item.profit.toFixed(2)}</div>
+      </td>
+      <td style="padding:10px 12px;text-align:center">
+        <span style="font-weight:600">${item.volume_raw || item.volume}</span>
+      </td>
+      <td style="padding:10px 12px;text-align:center;color:var(--text-muted)">${item.sell_listings}</td>
+      <td style="padding:10px 12px">${histBar}</td>
+      <td style="padding:10px 12px">
+        <div style="display:flex;gap:6px;flex-wrap:nowrap">
+          <a href="${escHtml(item.steam_url)}" target="_blank" class="btn btn-ghost" style="padding:4px 8px;font-size:11px">🔗 Steam</a>
+          <button class="btn btn-green" style="padding:4px 8px;font-size:11px;white-space:nowrap" onclick="addToWatchlist(${JSON.stringify(item).replace(/"/g, '&quot;')})">+ Слежка</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function addToWatchlist(item) {
+  try {
+    const res = await fetch('/api/items/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: item.name,
+        hash_name: item.hash_name,
+        app_id: item.app_id,
+        steam_url: item.steam_url,
+        image_url: item.icon_url,
+      })
+    });
+    const data = await res.json();
+    showToast(data.success ? '✅ ' + data.message : '❌ ' + data.message, data.success ? 'success' : 'error');
+  } catch (e) {
+    showToast('❌ Ошибка: ' + e.message, 'error');
+  }
+}
+
+let _apiLogs = [];
+
+async function loadApiLogs() {
+  try {
+    const res = await fetch('/api/logs/api?limit=200');
+    const data = await res.json();
+    _apiLogs = (data.logs || []).reverse();
+    renderApiLogs();
+  } catch (e) {
+    console.error('Failed to load API logs', e);
+  }
+}
+
+function renderApiLogs() {
+  const tbody = document.getElementById('api-logs-tbody');
+  const errorsOnly = document.getElementById('api-log-errors-only').checked;
+  const logs = errorsOnly ? _apiLogs.filter(l => l.error || (l.status_code && l.status_code >= 400)) : _apiLogs;
+
+  if (logs.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--text-muted)">Нет записей</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = logs.map(log => {
+    const isError = log.error || (log.status_code && log.status_code >= 400);
+    const statusColor = log.status_code === 200 ? 'var(--green)' : isError ? 'var(--red)' : 'var(--text-muted)';
+    const rowBg = isError ? 'background:rgba(248,81,73,0.05)' : '';
+    const time = log.created_at ? new Date(log.created_at).toLocaleTimeString('ru-RU') : '-';
+
+    let params = '';
+    try { const p = JSON.parse(log.params || '{}'); params = Object.entries(p).map(([k,v]) => `${k}=${v}`).join(', '); } catch (e) { params = log.params || ''; }
+
+    let resp = '';
+    if (log.error) {
+      resp = `<span style="color:var(--red)">${escHtml(log.error)}</span>`;
+    } else if (log.response) {
+      try { const r = JSON.parse(log.response); resp = JSON.stringify(r).slice(0, 120) + (JSON.stringify(r).length > 120 ? '...' : ''); }
+      catch(e) { resp = String(log.response).slice(0, 120); }
+    }
+
+    return `<tr style="border-bottom:1px solid var(--border);${rowBg}">
+      <td style="padding:6px 12px;color:var(--text-muted);white-space:nowrap">${time}</td>
+      <td style="padding:6px 12px;font-family:monospace;color:var(--blue)">${escHtml(log.endpoint)}</td>
+      <td style="padding:6px 12px;font-weight:600;color:${statusColor}">${log.status_code || '-'}</td>
+      <td style="padding:6px 12px;color:var(--text-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(params)}">${escHtml(params)}</td>
+      <td style="padding:6px 12px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(log.error || log.response || '')}">${resp}</td>
+    </tr>`;
+  }).join('');
+}
+
+loadApiLogs();
+setInterval(loadApiLogs, 30000);
+</script>
+</body>
+</html>

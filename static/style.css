@@ -468,3 +468,55 @@ select.form-control { cursor: pointer; }
   color: var(--text-muted);
 }
 .empty-state .emoji { font-size: 40px; margin-bottom: 12px; }
+
+/* ───── SCANNER TABLE ───── */
+.scanner-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.scanner-table th {
+  padding: 10px 12px;
+  text-align: left;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 12px;
+  border-bottom: 2px solid var(--border);
+  background: var(--bg-card2);
+  white-space: nowrap;
+}
+.scanner-table td {
+  vertical-align: middle;
+}
+.scanner-table tr:hover {
+  background: rgba(255,255,255,0.02);
+}
+
+/* ───── TOAST ───── */
+.toast {
+  background: var(--bg-card2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: all .25s;
+  max-width: 320px;
+  box-shadow: var(--shadow);
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.toast-success { border-color: var(--green); }
+.toast.toast-error { border-color: var(--red); }
+.toast.toast-info { border-color: var(--blue); }
+
+/* ───── BTN BLUE ───── */
+.btn-blue {
+  background: var(--blue);
+  color: #0d1117;
+  border-color: var(--blue);
+  font-weight: 600;
+}
+.btn-blue:hover { background: #79b8ff; border-color: #79b8ff; }
+.btn-blue:disabled { opacity: .5; cursor: not-allowed; }

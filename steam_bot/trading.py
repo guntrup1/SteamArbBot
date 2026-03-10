@@ -89,20 +89,26 @@ async def get_real_steam_balance() -> float:
 async def deduct_balance(amount: float):
     """Вычитание из баланса (тестовый или реальный)"""
     mode = get_current_mode()
+    curr_sym = get_currency_symbol(db.get_setting("steam_currency", "5"))
     if mode == "TEST":
         current = float(db.get_setting("current_virtual_balance", "1000"))
         new_balance = max(0, current - amount)
         db.set_setting("current_virtual_balance", str(round(new_balance, 2)))
+        tg_msg = tg.format_balance_change(current, new_balance, mode, curr_sym)
+        await send_tg(tg_msg)
         return new_balance
     return await get_real_steam_balance()
 
 async def add_balance(amount: float):
     """Добавление к балансу (только тестовый режим)"""
     mode = get_current_mode()
+    curr_sym = get_currency_symbol(db.get_setting("steam_currency", "5"))
     if mode == "TEST":
         current = float(db.get_setting("current_virtual_balance", "1000"))
         new_balance = current + amount
         db.set_setting("current_virtual_balance", str(round(new_balance, 2)))
+        tg_msg = tg.format_balance_change(current, new_balance, mode, curr_sym)
+        await send_tg(tg_msg)
         return new_balance
     return await get_real_steam_balance()
 
@@ -331,7 +337,9 @@ async def bot_loop():
                 await process_item(item, mode)
                 await asyncio.sleep(2)
             except Exception as e:
-                await log(f"❌ Ошибка обработки {item['name']}: {str(e)}", "error", item["name"], mode, "item_error")
+                err_msg = f"❌ Критическая ошибка обработки {item['name']}: {str(e)}"
+                await log(err_msg, "error", item["name"], mode, "item_error")
+                await send_tg(tg.format_error(str(e), item["name"], mode))
 
         if _bot_running:
             await log(f"⏱️ Ожидание {interval} секунд до следующей проверки...", "info", mode=mode, stage="waiting")

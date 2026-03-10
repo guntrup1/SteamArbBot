@@ -13,6 +13,8 @@ The bot monitors selected Steam Market items every 10–300 seconds, buys when t
 - **Real-time WebSocket logs** — live trading log stream to the dashboard
 - **Telegram notifications** — buy/sell/error alerts with item details, prices, profit
 - **PostgreSQL persistence** — items, trades, logs, settings, balance history (survives restarts and redeployments)
+- **Market Scanner** — scan Steam market for profitable items with discount filter, volume stats, 7-day price history analysis, add to watchlist
+- **API Logs** — all Steam API requests/responses logged to PostgreSQL and visible on scanner page
 - **Step-by-step settings page** — instructions for Steam API, Telegram, strategy
 
 ## Tech Stack
@@ -33,7 +35,7 @@ steam_bot/
   database.py            # PostgreSQL helpers: settings, items, trades, logs
   market.py              # Steam Market price API, search, buy analysis
   trading.py             # Bot loop, buy/sell logic, WS broadcast, mode mgmt
-  telegram_bot.py        # Telegram message formatters + async sender
+  telegram_bot.py        # Telegram message formatters + async sender (started/stopped/buy/sell/balance/error)
 templates/
   dashboard.html         # Main dashboard: stats, items, logs, trades
   settings.html          # Settings page: instructions, item search, all fields
