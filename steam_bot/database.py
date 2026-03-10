@@ -207,21 +207,25 @@ def get_statistics(test_mode=None):
     today = datetime.now().strftime("%Y-%m-%d")
 
     if test_mode is None:
-        filter_clause = ""
-        params_today = (today + "%",)
+        c.execute("""SELECT
+            COUNT(*) as total_trades,
+            SUM(CASE WHEN trade_type='buy' THEN 1 ELSE 0 END) as total_buys,
+            SUM(CASE WHEN trade_type='sell' THEN 1 ELSE 0 END) as total_sells,
+            SUM(CASE WHEN trade_type='sell' THEN profit_after_fee ELSE 0 END) as total_profit,
+            SUM(CASE WHEN trade_type='sell' AND created_at LIKE ? THEN profit_after_fee ELSE 0 END) as daily_profit
+            FROM trades WHERE status='completed'""",
+            (today + "%",)
+        )
     else:
-        filter_clause = "AND test_mode=?"
-        params_today = (today + "%", 1 if test_mode else 0)
-
-    c.execute("""SELECT
-        COUNT(*) as total_trades,
-        SUM(CASE WHEN trade_type='buy' THEN 1 ELSE 0 END) as total_buys,
-        SUM(CASE WHEN trade_type='sell' THEN 1 ELSE 0 END) as total_sells,
-        SUM(CASE WHEN trade_type='sell' THEN profit_after_fee ELSE 0 END) as total_profit,
-        SUM(CASE WHEN trade_type='sell' AND created_at LIKE ? THEN profit_after_fee ELSE 0 END) as daily_profit
-        FROM trades WHERE status='completed' """ + filter_clause,
-        params_today
-    )
+        c.execute("""SELECT
+            COUNT(*) as total_trades,
+            SUM(CASE WHEN trade_type='buy' THEN 1 ELSE 0 END) as total_buys,
+            SUM(CASE WHEN trade_type='sell' THEN 1 ELSE 0 END) as total_sells,
+            SUM(CASE WHEN trade_type='sell' THEN profit_after_fee ELSE 0 END) as total_profit,
+            SUM(CASE WHEN trade_type='sell' AND created_at LIKE ? THEN profit_after_fee ELSE 0 END) as daily_profit
+            FROM trades WHERE status='completed' AND test_mode=?""",
+            (today + "%", 1 if test_mode else 0)
+        )
     row = c.fetchone()
     conn.close()
     return dict(row) if row else {}
