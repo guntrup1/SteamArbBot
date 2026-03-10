@@ -2,6 +2,7 @@
 let ws = null;
 let wsReconnectTimer = null;
 let wsConnected = false;
+let _searchResults = [];
 
 function connectWS() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -210,15 +211,33 @@ async function doSearch(q) {
     return;
   }
 
-  results.innerHTML = data.results.map(item => `
-    <div class="search-item" onclick="selectSearchItem(${JSON.stringify(item).replace(/"/g, '&quot;')})">
-      <img src="${escapeHtml(item.icon_url || '/static/no-image.png')}" onerror="this.src='/static/no-image.png'" />
-      <div>
-        <div class="search-item-name">${escapeHtml(item.name)}</div>
-        <div class="search-item-price">${escapeHtml(String(item.price_text))} · ${escapeHtml(String(item.sell_listings))} листингов</div>
-      </div>
-    </div>
-  `).join('');
+  _searchResults = data.results;
+  results.textContent = '';
+  data.results.forEach((item, index) => {
+    const row = document.createElement('div');
+    row.className = 'search-item';
+    row.addEventListener('click', () => selectSearchItem(_searchResults[index]));
+
+    const img = document.createElement('img');
+    img.src = item.icon_url || '/static/no-image.png';
+    img.onerror = function() { this.src = '/static/no-image.png'; };
+
+    const info = document.createElement('div');
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'search-item-name';
+    nameEl.textContent = item.name;
+
+    const priceEl = document.createElement('div');
+    priceEl.className = 'search-item-price';
+    priceEl.textContent = `${item.price_text} · ${item.sell_listings} листингов`;
+
+    info.appendChild(nameEl);
+    info.appendChild(priceEl);
+    row.appendChild(img);
+    row.appendChild(info);
+    results.appendChild(row);
+  });
 }
 
 function selectSearchItem(item) {
