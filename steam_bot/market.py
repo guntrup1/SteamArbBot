@@ -1,12 +1,28 @@
 import aiohttp
 import asyncio
 import time
+import random
 from steam_bot.config import STEAM_PRICE_API, STEAM_SEARCH_API, STEAM_COMMISSION
 
 _price_cache = {}
-CACHE_TTL = 30
+CACHE_TTL = 300
 
 STEAM_PRICE_HISTORY_API = "https://steamcommunity.com/market/pricehistory/"
+
+_STEAM_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/javascript, */*; q=0.01",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://steamcommunity.com/market/",
+    "X-Requested-With": "XMLHttpRequest",
+}
+
+_steam_sem = asyncio.Semaphore(1)
+
+RATE_DELAY_MIN = 1.5
+RATE_DELAY_MAX = 3.0
+RETRY_429_WAIT = 35
 
 
 def _log_api(endpoint: str, params: dict, status: int, response: dict = None, error: str = None):
@@ -15,6 +31,56 @@ def _log_api(endpoint: str, params: dict, status: int, response: dict = None, er
         db.add_api_log(endpoint, params, status, response, error)
     except Exception:
         pass
+
+
+async def _steam_get(session: aiohttp.ClientSession, url: str, params: dict,
+                     endpoint_label: str, retries: int = 3) -> tuple:
+    """
+    Безопасный GET-запрос к Steam с:
+    - Семафором (1 одновременный запрос) + задержкой ВНУТРИ него
+    - Случайным джиттером между запросами (1.5–3 сек)
+    - Повтором при 429 с ожиданием ~35–50 сек
+    Возвращает (status_code, data_or_None)
+    """
+    for attempt in range(retries):
+        async with _steam_sem:
+            result_status = 0
+            result_data = None
+            do_retry = False
+            retry_wait = 0
+            try:
+                async with session.get(url, params=params, headers=_STEAM_HEADERS,
+                                       timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                    result_status = resp.status
+                    if resp.status == 200:
+                        try:
+                            result_data = await resp.json(content_type=None)
+                        except Exception:
+                            result_data = None
+                    elif resp.status == 429:
+                        _log_api(endpoint_label, params, 429, None,
+                                 f"Rate limit (attempt {attempt+1}/{retries})")
+                        if attempt < retries - 1:
+                            do_retry = True
+                            retry_wait = RETRY_429_WAIT + random.uniform(5, 15)
+                    else:
+                        pass
+            except asyncio.TimeoutError:
+                _log_api(endpoint_label, params, 0, None, f"Timeout (attempt {attempt+1})")
+                if attempt < retries - 1:
+                    do_retry = True
+                    retry_wait = 3
+            except Exception as e:
+                _log_api(endpoint_label, params, 0, None, str(e))
+                return 0, None
+
+            if not do_retry:
+                await asyncio.sleep(random.uniform(RATE_DELAY_MIN, RATE_DELAY_MAX))
+                return result_status, result_data
+
+            await asyncio.sleep(retry_wait)
+
+    return 0, None
 
 
 async def get_item_price(market_hash_name: str, app_id: int = 730, currency: int = 5) -> dict:
@@ -30,74 +96,50 @@ async def get_item_price(market_hash_name: str, app_id: int = 730, currency: int
         "market_hash_name": market_hash_name,
         "currency": currency,
     }
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "application/json",
-        "Referer": "https://steamcommunity.com/market/",
-    }
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(STEAM_PRICE_API, params=params, headers=headers,
-                                   timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    if data.get("success"):
-                        result = {
-                            "success": True,
-                            "lowest_price_raw": data.get("lowest_price", ""),
-                            "median_price_raw": data.get("median_price", ""),
-                            "volume": data.get("volume", "0"),
-                            "lowest_price": parse_price(data.get("lowest_price", "")),
-                            "median_price": parse_price(data.get("median_price", "")),
-                        }
-                        _price_cache[cache_key] = (now, result)
-                        _log_api("priceoverview", params, resp.status, data)
-                        return result
-                    else:
-                        _log_api("priceoverview", params, resp.status, data, "success=false")
-                        return {"success": False, "error": "Steam API вернул success=false"}
-                elif resp.status == 429:
-                    _log_api("priceoverview", params, 429, None, "Rate limit")
-                    return {"success": False, "error": "Лимит запросов Steam API (429). Подождите..."}
-                else:
-                    _log_api("priceoverview", params, resp.status, None, f"HTTP {resp.status}")
-                    return {"success": False, "error": f"Ошибка Steam API: HTTP {resp.status}"}
-    except asyncio.TimeoutError:
-        _log_api("priceoverview", params, 0, None, "Timeout")
-        return {"success": False, "error": "Таймаут запроса к Steam API"}
-    except Exception as e:
-        _log_api("priceoverview", params, 0, None, str(e))
-        return {"success": False, "error": f"Ошибка запроса: {str(e)}"}
+    async with aiohttp.ClientSession() as session:
+        status, data = await _steam_get(session, STEAM_PRICE_API, params, "priceoverview")
+
+    if status == 200 and data:
+        if data.get("success"):
+            result = {
+                "success": True,
+                "lowest_price_raw": data.get("lowest_price", ""),
+                "median_price_raw": data.get("median_price", ""),
+                "volume": data.get("volume", "0"),
+                "lowest_price": parse_price(data.get("lowest_price", "")),
+                "median_price": parse_price(data.get("median_price", "")),
+            }
+            _price_cache[cache_key] = (now, result)
+            _log_api("priceoverview", params, status, data)
+            return result
+        else:
+            _log_api("priceoverview", params, status, data, "success=false")
+            return {"success": False, "error": "Steam API вернул success=false"}
+    elif status == 429:
+        return {"success": False, "error": "Rate limit 429 — исчерпаны все попытки"}
+    else:
+        _log_api("priceoverview", params, status, None, f"HTTP {status}")
+        return {"success": False, "error": f"HTTP {status}"}
 
 
 async def get_price_history(market_hash_name: str, app_id: int = 730, currency: int = 1) -> dict:
-    """Получение истории цен предмета за последние 30 дней (требует авторизации Steam)."""
+    """Получение истории цен предмета (требует авторизации Steam, без cookies возвращает 400)."""
     params = {
         "appid": app_id,
         "market_hash_name": market_hash_name,
         "currency": currency,
         "country": "US",
     }
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "application/json",
-        "Referer": f"https://steamcommunity.com/market/listings/{app_id}/{market_hash_name}",
-    }
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(STEAM_PRICE_HISTORY_API, params=params, headers=headers,
-                                   timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    _log_api("pricehistory", params, resp.status, {"prices_count": len(data.get("prices", []))})
-                    if data.get("success") and data.get("prices"):
-                        return {"success": True, "prices": data["prices"]}
-                    return {"success": False, "error": "Нет данных истории"}
-                _log_api("pricehistory", params, resp.status, None, f"HTTP {resp.status}")
-                return {"success": False, "error": f"HTTP {resp.status} (требует авторизации Steam)"}
-    except Exception as e:
-        _log_api("pricehistory", params, 0, None, str(e))
-        return {"success": False, "error": str(e)}
+    async with aiohttp.ClientSession() as session:
+        status, data = await _steam_get(session, STEAM_PRICE_HISTORY_API, params, "pricehistory")
+
+    if status == 200 and data:
+        _log_api("pricehistory", params, status, {"prices_count": len(data.get("prices", []))})
+        if data.get("success") and data.get("prices"):
+            return {"success": True, "prices": data["prices"]}
+        return {"success": False, "error": "Нет данных истории"}
+    _log_api("pricehistory", params, status, None, f"HTTP {status}")
+    return {"success": False, "error": f"HTTP {status} (требует авторизации Steam)"}
 
 
 def analyze_price_history(prices: list, threshold_pct: float = 17.0) -> dict:
@@ -246,8 +288,8 @@ async def search_item(query: str, app_id: int = 730) -> list:
     return []
 
 
-async def _fetch_search_page(session, app_id: int, query: str, start: int, page_size: int = 50) -> list:
-    """Запрос одной страницы Steam Market Search."""
+async def _fetch_search_page(session, app_id: int, query: str, start: int, page_size: int = 50) -> tuple:
+    """Запрос одной страницы Steam Market Search через _steam_get (с rate-limit защитой)."""
     params = {
         "appid": app_id,
         "query": query,
@@ -258,24 +300,13 @@ async def _fetch_search_page(session, app_id: int, query: str, start: int, page_
         "sort_dir": "desc",
         "norender": 1,
     }
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "application/json",
-        "Referer": "https://steamcommunity.com/market/",
-    }
-    try:
-        async with session.get(STEAM_SEARCH_API, params=params, headers=headers,
-                               timeout=aiohttp.ClientTimeout(total=15)) as resp:
-            if resp.status == 200:
-                data = await resp.json()
-                _log_api("scanner/search", {"query": query, "appid": app_id, "start": start},
-                         resp.status, {"total": data.get("total_count", 0),
-                                       "results": len(data.get("results", []))})
-                return data.get("results", []), data.get("total_count", 0)
-            else:
-                _log_api("scanner/search", params, resp.status, None, f"HTTP {resp.status}")
-    except Exception as e:
-        _log_api("scanner/search", params, 0, None, str(e))
+    label = f"scanner/search"
+    status, data = await _steam_get(session, STEAM_SEARCH_API, params, label)
+    if status == 200 and data:
+        _log_api(label, {"query": query, "appid": app_id, "start": start},
+                 status, {"total": data.get("total_count", 0),
+                          "results": len(data.get("results", []))})
+        return data.get("results", []), data.get("total_count", 0)
     return [], 0
 
 
@@ -319,7 +350,6 @@ async def scan_market(query: str, app_id: int = 730, currency: int = 5,
 
             if len(raw_candidates) >= max_results * 2 or start + PAGE_SIZE >= total:
                 break
-            await asyncio.sleep(0.5)
 
     seen = set()
     unique_candidates = []
@@ -333,7 +363,6 @@ async def scan_market(query: str, app_id: int = 730, currency: int = 5,
     results = []
     for item in unique_candidates:
         price_data = await get_item_price(item["hash_name"], app_id, currency)
-        await asyncio.sleep(0.4)
 
         if not price_data.get("success"):
             continue
@@ -355,7 +384,6 @@ async def scan_market(query: str, app_id: int = 730, currency: int = 5,
 
         history_stats = {}
         history_data = await get_price_history(item["hash_name"], app_id, 1)
-        await asyncio.sleep(0.3)
         if history_data.get("success"):
             history_stats = analyze_price_history(history_data["prices"], threshold_pct)
 

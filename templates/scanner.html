@@ -316,14 +316,14 @@ async function startScan() {
     const sec = Math.floor((Date.now() - _scanStart) / 1000);
     elapsed.textContent = `${sec}с`;
     const phases = [
-      [0, 'Загрузка страниц поиска Steam...'],
-      [15, 'Фильтрация по цене...'],
-      [25, 'Получение текущих цен...'],
-      [60, 'Запрос истории цен...'],
-      [90, 'Финальная сортировка...'],
+      [0,   '🔍 Загрузка страниц поиска Steam...'],
+      [10,  '📋 Фильтрация кандидатов по цене...'],
+      [20,  '💰 Запросы цен (1.5–3 сек/предмет, защита от блокировки)...'],
+      [90,  '📊 Анализ истории продаж...'],
+      [160, '✅ Финальная сортировка...'],
     ];
     const phase = [...phases].reverse().find(([s]) => sec >= s);
-    const pct = Math.min(5 + (sec / 150) * 90, 90);
+    const pct = Math.min(5 + (sec / 220) * 90, 90);
     progressBar.style.width = pct + '%';
     const msg = phase ? phase[1] : 'Сканирование...';
     statusText.innerHTML = `<span class="spinner" style="width:14px;height:14px;border-width:2px"></span> ${msg}`;
