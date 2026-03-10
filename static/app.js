@@ -346,8 +346,14 @@ async function saveSettings() {
 
 async function testTelegram() {
   const btn = document.getElementById('test-tg-btn');
+  const token = document.querySelector('input[name="telegram_bot_token"]')?.value?.trim();
+  const chatId = document.querySelector('input[name="telegram_chat_id"]')?.value?.trim();
+  if (!token || !chatId) {
+    showToast('❌ Введите токен и Chat ID', 'error');
+    return;
+  }
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Отправка...'; }
-  const res = await apiPost('/api/telegram/test', {});
+  const res = await apiPost('/api/telegram/test', { token, chat_id: chatId });
   showToast(res.success ? '✅ ' + res.message : '❌ ' + res.message, res.success ? 'success' : 'error');
   if (btn) { btn.disabled = false; btn.innerHTML = '📨 Тест'; }
 }

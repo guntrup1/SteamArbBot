@@ -1,13 +1,15 @@
-import sqlite3
 import os
+import psycopg2
+import psycopg2.extras
 from datetime import datetime
 
-DB_PATH = "steam_bot.db"
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
 
 def get_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = psycopg2.connect(DATABASE_URL)
     return conn
+
 
 def init_db():
     conn = get_connection()
@@ -15,20 +17,20 @@ def init_db():
 
     c.execute("""
         CREATE TABLE IF NOT EXISTS items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT NOT NULL,
             market_hash_name TEXT NOT NULL UNIQUE,
             app_id INTEGER DEFAULT 730,
             enabled INTEGER DEFAULT 1,
             steam_url TEXT,
             image_url TEXT,
-            added_at TEXT DEFAULT (datetime('now'))
+            added_at TIMESTAMP DEFAULT NOW()
         )
     """)
 
     c.execute("""
         CREATE TABLE IF NOT EXISTS trades (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             item_name TEXT NOT NULL,
             market_hash_name TEXT NOT NULL,
             trade_type TEXT NOT NULL,
@@ -39,20 +41,20 @@ def init_db():
             profit_after_fee REAL,
             status TEXT DEFAULT 'pending',
             test_mode INTEGER DEFAULT 0,
-            created_at TEXT DEFAULT (datetime('now')),
-            completed_at TEXT
+            created_at TIMESTAMP DEFAULT NOW(),
+            completed_at TIMESTAMP
         )
     """)
 
     c.execute("""
         CREATE TABLE IF NOT EXISTS logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             level TEXT DEFAULT 'info',
             message TEXT NOT NULL,
             item_name TEXT,
             mode TEXT DEFAULT 'TEST',
             stage TEXT,
-            created_at TEXT DEFAULT (datetime('now'))
+            created_at TIMESTAMP DEFAULT NOW()
         )
     """)
 
@@ -65,10 +67,10 @@ def init_db():
 
     c.execute("""
         CREATE TABLE IF NOT EXISTS balance_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             balance REAL NOT NULL,
             mode TEXT DEFAULT 'TEST',
-            created_at TEXT DEFAULT (datetime('now'))
+            created_at TIMESTAMP DEFAULT NOW()
         )
     """)
 
@@ -93,41 +95,52 @@ def init_db():
     }
 
     for key, value in defaults.items():
-        c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (key, value))
+        c.execute(
+            "INSERT INTO settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING",
+            (key, value)
+        )
 
     conn.commit()
     conn.close()
 
+
 def get_setting(key, default=None):
     conn = get_connection()
-    c = conn.cursor()
-    c.execute("SELECT value FROM settings WHERE key = ?", (key,))
+    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    c.execute("SELECT value FROM settings WHERE key = %s", (key,))
     row = c.fetchone()
     conn.close()
     return row["value"] if row else default
 
+
 def set_setting(key, value):
     conn = get_connection()
     c = conn.cursor()
-    c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, str(value)))
+    c.execute(
+        "INSERT INTO settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+        (key, str(value))
+    )
     conn.commit()
     conn.close()
 
+
 def get_all_settings():
     conn = get_connection()
-    c = conn.cursor()
+    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     c.execute("SELECT key, value FROM settings")
     rows = c.fetchall()
     conn.close()
     return {row["key"]: row["value"] for row in rows}
 
+
 def get_items():
     conn = get_connection()
-    c = conn.cursor()
+    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     c.execute("SELECT * FROM items WHERE enabled = 1 ORDER BY name")
     rows = c.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
 
 def add_item(name, market_hash_name, app_id=730, steam_url=None, image_url=None):
     conn = get_connection()
@@ -135,42 +148,47 @@ def add_item(name, market_hash_name, app_id=730, steam_url=None, image_url=None)
     url = steam_url or f"https://steamcommunity.com/market/listings/{app_id}/{market_hash_name.replace(' ', '%20')}"
     try:
         c.execute(
-            "INSERT INTO items (name, market_hash_name, app_id, steam_url, image_url) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO items (name, market_hash_name, app_id, steam_url, image_url) VALUES (%s, %s, %s, %s, %s)",
             (name, market_hash_name, app_id, url, image_url)
         )
         conn.commit()
         return True, "Предмет добавлен"
-    except sqlite3.IntegrityError:
-        c.execute("UPDATE items SET enabled=1 WHERE market_hash_name=?", (market_hash_name,))
+    except psycopg2.IntegrityError:
+        conn.rollback()
+        c.execute("UPDATE items SET enabled=1 WHERE market_hash_name=%s", (market_hash_name,))
         conn.commit()
         return True, "Предмет уже существует, активирован"
     finally:
         conn.close()
 
+
 def remove_item(item_id):
     conn = get_connection()
     c = conn.cursor()
-    c.execute("UPDATE items SET enabled=0 WHERE id=?", (item_id,))
+    c.execute("UPDATE items SET enabled=0 WHERE id=%s", (item_id,))
     conn.commit()
     conn.close()
+
 
 def add_log(message, level="info", item_name=None, mode="TEST", stage=None):
     conn = get_connection()
     c = conn.cursor()
     c.execute(
-        "INSERT INTO logs (level, message, item_name, mode, stage) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO logs (level, message, item_name, mode, stage) VALUES (%s, %s, %s, %s, %s)",
         (level, message, item_name, mode, stage)
     )
     conn.commit()
     conn.close()
 
+
 def get_logs(limit=100):
     conn = get_connection()
-    c = conn.cursor()
-    c.execute("SELECT * FROM logs ORDER BY id DESC LIMIT ?", (limit,))
+    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    c.execute("SELECT * FROM (SELECT * FROM logs ORDER BY id DESC LIMIT %s) sub ORDER BY id ASC", (limit,))
     rows = c.fetchall()
     conn.close()
-    return [dict(row) for row in reversed(rows)]
+    return [dict(row) for row in rows]
+
 
 def add_trade(item_name, market_hash_name, trade_type, buy_price=None, sell_price=None,
               market_price=None, profit=None, profit_after_fee=None, status="completed", test_mode=True):
@@ -180,31 +198,33 @@ def add_trade(item_name, market_hash_name, trade_type, buy_price=None, sell_pric
         """INSERT INTO trades
            (item_name, market_hash_name, trade_type, buy_price, sell_price,
             market_price, profit, profit_after_fee, status, test_mode, completed_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
         (item_name, market_hash_name, trade_type, buy_price, sell_price,
          market_price, profit, profit_after_fee, status, 1 if test_mode else 0,
-         datetime.now().isoformat())
+         datetime.now())
     )
     conn.commit()
     conn.close()
 
+
 def get_trades(limit=50, test_mode=None):
     conn = get_connection()
-    c = conn.cursor()
+    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     if test_mode is None:
-        c.execute("SELECT * FROM trades ORDER BY id DESC LIMIT ?", (limit,))
+        c.execute("SELECT * FROM trades ORDER BY id DESC LIMIT %s", (limit,))
     else:
-        c.execute("SELECT * FROM trades WHERE test_mode=? ORDER BY id DESC LIMIT ?",
+        c.execute("SELECT * FROM trades WHERE test_mode=%s ORDER BY id DESC LIMIT %s",
                   (1 if test_mode else 0, limit))
     rows = c.fetchall()
     conn.close()
     return [dict(row) for row in rows]
 
+
 def get_statistics(test_mode=None):
     conn = get_connection()
-    c = conn.cursor()
+    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now().date()
 
     if test_mode is None:
         c.execute("""SELECT
@@ -212,9 +232,9 @@ def get_statistics(test_mode=None):
             SUM(CASE WHEN trade_type='buy' THEN 1 ELSE 0 END) as total_buys,
             SUM(CASE WHEN trade_type='sell' THEN 1 ELSE 0 END) as total_sells,
             SUM(CASE WHEN trade_type='sell' THEN profit_after_fee ELSE 0 END) as total_profit,
-            SUM(CASE WHEN trade_type='sell' AND created_at LIKE ? THEN profit_after_fee ELSE 0 END) as daily_profit
+            SUM(CASE WHEN trade_type='sell' AND DATE(created_at) = %s THEN profit_after_fee ELSE 0 END) as daily_profit
             FROM trades WHERE status='completed'""",
-            (today + "%",)
+            (today,)
         )
     else:
         c.execute("""SELECT
@@ -222,17 +242,18 @@ def get_statistics(test_mode=None):
             SUM(CASE WHEN trade_type='buy' THEN 1 ELSE 0 END) as total_buys,
             SUM(CASE WHEN trade_type='sell' THEN 1 ELSE 0 END) as total_sells,
             SUM(CASE WHEN trade_type='sell' THEN profit_after_fee ELSE 0 END) as total_profit,
-            SUM(CASE WHEN trade_type='sell' AND created_at LIKE ? THEN profit_after_fee ELSE 0 END) as daily_profit
-            FROM trades WHERE status='completed' AND test_mode=?""",
-            (today + "%", 1 if test_mode else 0)
+            SUM(CASE WHEN trade_type='sell' AND DATE(created_at) = %s THEN profit_after_fee ELSE 0 END) as daily_profit
+            FROM trades WHERE status='completed' AND test_mode=%s""",
+            (today, 1 if test_mode else 0)
         )
     row = c.fetchone()
     conn.close()
     return dict(row) if row else {}
 
+
 def add_balance_history(balance, mode):
     conn = get_connection()
     c = conn.cursor()
-    c.execute("INSERT INTO balance_history (balance, mode) VALUES (?, ?)", (balance, mode))
+    c.execute("INSERT INTO balance_history (balance, mode) VALUES (%s, %s)", (balance, mode))
     conn.commit()
     conn.close()

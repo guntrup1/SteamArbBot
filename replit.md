@@ -12,14 +12,14 @@ The bot monitors selected Steam Market items every 10–300 seconds, buys when t
 - **LIVE mode** — real Steam balance, real buy/sell transactions
 - **Real-time WebSocket logs** — live trading log stream to the dashboard
 - **Telegram notifications** — buy/sell/error alerts with item details, prices, profit
-- **SQLite persistence** — items, trades, logs, settings, balance history
+- **PostgreSQL persistence** — items, trades, logs, settings, balance history (survives restarts and redeployments)
 - **Step-by-step settings page** — instructions for Steam API, Telegram, strategy
 
 ## Tech Stack
 
 - **Backend**: Python 3.11, FastAPI, Uvicorn, aiohttp
 - **Frontend**: Vanilla JS, WebSocket, dark theme CSS
-- **Database**: SQLite via `sqlite3` stdlib
+- **Database**: PostgreSQL via `psycopg2-binary` (DATABASE_URL env var)
 - **Notifications**: python-telegram-bot / aiohttp direct API
 - **Port**: 5000
 
@@ -30,7 +30,7 @@ main.py                  # FastAPI app, all routes, WebSocket endpoint
 steam_bot/
   __init__.py
   config.py              # Constants: commission (15%), thresholds, URLs
-  database.py            # SQLite helpers: settings, items, trades, logs
+  database.py            # PostgreSQL helpers: settings, items, trades, logs
   market.py              # Steam Market price API, search, buy analysis
   trading.py             # Bot loop, buy/sell logic, WS broadcast, mode mgmt
   telegram_bot.py        # Telegram message formatters + async sender
@@ -40,7 +40,6 @@ templates/
 static/
   style.css              # Dark theme CSS
   app.js                 # WebSocket client, bot control, item search, settings
-steam_bot.db             # SQLite database (auto-created)
 ```
 
 ## Key Business Logic
@@ -51,7 +50,7 @@ steam_bot.db             # SQLite database (auto-created)
 - **Price cache**: 30 seconds per item to avoid Steam API rate limits
 - **Hourly buy limit**: configurable, default 10 buys/hour
 
-## Settings (stored in SQLite)
+## Settings (stored in PostgreSQL)
 
 | Key | Default | Description |
 |-----|---------|-------------|
