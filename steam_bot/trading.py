@@ -120,7 +120,7 @@ async def send_tg(message: str):
     token = db.get_setting("telegram_bot_token", "")
     chat_id = db.get_setting("telegram_chat_id", "")
     if token and chat_id:
-        await tg.send_telegram_message(token, chat_id, message)
+        ok, _ = await tg.send_telegram_message(token, chat_id, message)
 
 async def process_item(item: dict, mode: str):
     """Обработка одного предмета: проверка цены и принятие решения о покупке"""

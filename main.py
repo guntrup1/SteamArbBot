@@ -228,9 +228,11 @@ async def test_telegram(request: Request):
     chat_id = data.get("chat_id") or db.get_setting("telegram_chat_id", "")
     if not token or not chat_id:
         return JSONResponse({"success": False, "message": "Укажите токен и Chat ID"})
-    ok = await tg.send_telegram_message(token, chat_id,
+    ok, err = await tg.send_telegram_message(token, chat_id,
         "✅ <b>Тест подключения Steam Market Bot</b>\n\nTelegram уведомления работают корректно!")
-    return JSONResponse({"success": ok, "message": "Сообщение отправлено" if ok else "Ошибка — проверьте токен и Chat ID"})
+    if ok:
+        return JSONResponse({"success": True, "message": "Сообщение отправлено успешно"})
+    return JSONResponse({"success": False, "message": err or "Ошибка — проверьте токен и Chat ID"})
 
 
 @app.post("/api/virtual_balance/reset")

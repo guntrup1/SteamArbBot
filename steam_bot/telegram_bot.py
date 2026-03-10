@@ -2,10 +2,10 @@ import asyncio
 import aiohttp
 from datetime import datetime
 
-async def send_telegram_message(token: str, chat_id: str, text: str) -> bool:
-    """Отправка сообщения в Telegram"""
+async def send_telegram_message(token: str, chat_id: str, text: str) -> tuple[bool, str]:
+    """Отправка сообщения в Telegram. Возвращает (успех, описание_ошибки)"""
     if not token or not chat_id:
-        return False
+        return False, "Токен или Chat ID не указаны"
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": chat_id,
@@ -17,9 +17,17 @@ async def send_telegram_message(token: str, chat_id: str, text: str) -> bool:
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                 data = await resp.json()
-                return data.get("ok", False)
-    except Exception:
-        return False
+                if data.get("ok"):
+                    return True, ""
+                description = data.get("description", "Неизвестная ошибка")
+                error_code = data.get("error_code", "")
+                return False, f"Telegram: {description} (код {error_code})"
+    except aiohttp.ClientConnectorError:
+        return False, "Нет соединения с Telegram API"
+    except asyncio.TimeoutError:
+        return False, "Превышено время ожидания ответа от Telegram"
+    except Exception as e:
+        return False, f"Ошибка: {str(e)}"
 
 
 def format_bot_started(mode: str, balance: float, currency_symbol: str = "₽") -> str:
