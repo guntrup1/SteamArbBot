@@ -5,6 +5,45 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Steam Market Bot — Настройки</title>
 <link rel="stylesheet" href="/static/style.css">
+<style>
+.settings-tabs { display:flex; gap:0; border-bottom:2px solid var(--border); margin-bottom:20px; overflow-x:auto; }
+.settings-tab {
+  padding:10px 18px; cursor:pointer; font-size:13px; font-weight:600;
+  color:var(--text-muted); border-bottom:2px solid transparent; margin-bottom:-2px;
+  background:none; border-top:none; border-left:none; border-right:none;
+  white-space:nowrap; transition:all .15s;
+}
+.settings-tab:hover { color:var(--text); }
+.settings-tab.active { color:var(--blue); border-bottom-color:var(--blue); }
+.settings-panel { display:none; }
+.settings-panel.active { display:block; }
+.info-box {
+  background:rgba(88,166,255,0.06); border:1px solid rgba(88,166,255,0.15);
+  border-radius:8px; padding:14px 16px; margin-bottom:16px; font-size:13px; line-height:1.6;
+}
+.info-box h4 { font-size:14px; margin-bottom:6px; color:var(--blue); }
+.warn-box {
+  background:rgba(210,153,34,0.06); border:1px solid rgba(210,153,34,0.15);
+  border-radius:8px; padding:14px 16px; margin-bottom:16px; font-size:13px; line-height:1.6;
+}
+.warn-box h4 { font-size:14px; margin-bottom:6px; color:var(--yellow); }
+.danger-box {
+  background:rgba(248,81,73,0.06); border:1px solid rgba(248,81,73,0.15);
+  border-radius:8px; padding:14px 16px; margin-bottom:16px; font-size:13px; line-height:1.6;
+}
+.danger-box h4 { font-size:14px; margin-bottom:6px; color:var(--red); }
+.step-list { counter-reset:steps; list-style:none; padding:0; }
+.step-list li { counter-increment:steps; position:relative; padding-left:32px; margin-bottom:10px; font-size:13px; line-height:1.5; }
+.step-list li::before {
+  content:counter(steps); position:absolute; left:0; top:0;
+  width:22px; height:22px; border-radius:50%; background:var(--blue);
+  color:#0d1117; text-align:center; line-height:22px; font-size:11px; font-weight:700;
+}
+.status-indicator { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600; }
+.status-ok { background:rgba(63,185,80,0.12); color:var(--green); }
+.status-warn { background:rgba(210,153,34,0.12); color:var(--yellow); }
+.status-err { background:rgba(248,81,73,0.12); color:var(--red); }
+</style>
 </head>
 <body>
 
@@ -16,7 +55,6 @@
     <a href="/settings" class="nav-link active">⚙️ Настройки</a>
   </div>
   <div class="navbar-right">
-    <div class="ws-status" id="ws-status"><span class="dot gray"></span> Подключение...</div>
     <div class="mode-badge {% if mode == 'LIVE' %}live{% else %}test{% endif %}">
       <span class="dot {% if mode == 'LIVE' %}red{% else %}green{% endif %}"></span>
       {{ mode }}
@@ -26,197 +64,62 @@
 
 <div class="container">
 
-  <div style="font-size:22px;font-weight:700;margin-bottom:20px">⚙️ Настройки</div>
+  <div style="font-size:22px;font-weight:700;margin-bottom:8px">⚙️ Настройки</div>
+  <p class="text-muted" style="font-size:13px;margin-bottom:16px">Конфигурация бота, подключение Steam и Telegram, торговая стратегия</p>
 
-  <!-- ── INSTRUCTION BLOCK ── -->
-  <div class="card mb-16">
-    <div class="card-header">📖 Инструкция по настройке</div>
-    <div class="card-body">
-      <div class="tabs">
-        <button class="tab-btn active" data-tab="setup">🚀 Быстрый старт</button>
-        <button class="tab-btn" data-tab="steam">🎮 Steam API</button>
-        <button class="tab-btn" data-tab="telegram">📱 Telegram</button>
-        <button class="tab-btn" data-tab="strategy">📈 Стратегия</button>
-        <button class="tab-btn" data-tab="modes">🔄 Режимы</button>
-      </div>
-
-      <div id="tab-setup" class="tab-content active">
-        <div class="instruction-step">
-          <div class="step-num">1</div>
-          <div class="step-content">
-            <h4>Добавьте предметы для мониторинга</h4>
-            <p>Найдите предметы через поиск ниже. Введите название (например <code>AK-47 Redline</code>) и выберите из результатов. Бот будет следить за этими предметами на Steam Market.</p>
-          </div>
-        </div>
-        <div class="instruction-step">
-          <div class="step-num">2</div>
-          <div class="step-content">
-            <h4>Запустите в тестовом режиме</h4>
-            <p>Сначала используйте <strong>ТЕСТОВЫЙ режим</strong> — укажите виртуальный баланс (например <code>5000</code> рублей). Бот будет мониторить реальные цены, симулировать покупки и продажи, показывать подробные логи — но без реальных транзакций.</p>
-          </div>
-        </div>
-        <div class="instruction-step">
-          <div class="step-num">3</div>
-          <div class="step-content">
-            <h4>Настройте Steam API для реальной торговли</h4>
-            <p>Когда убедитесь что стратегия работает — заполните вкладку <strong>Steam API</strong> и переключитесь в <strong>LIVE режим</strong>. Бот будет использовать ваш реальный баланс Steam.</p>
-          </div>
-        </div>
-        <div class="instruction-step">
-          <div class="step-num">4</div>
-          <div class="step-content">
-            <h4>Настройте Telegram уведомления</h4>
-            <p>Создайте бота через <a href="https://t.me/BotFather" target="_blank">@BotFather</a>, получите токен, укажите ваш Chat ID. Бот будет присылать уведомления о каждой сделке.</p>
-          </div>
-        </div>
-        <div class="instruction-step">
-          <div class="step-num">5</div>
-          <div class="step-content">
-            <h4>Следите за логами</h4>
-            <p>На Dashboard в разделе "Логи в реальном времени" вы увидите каждый шаг: проверка цены → сравнение с рынком → расчёт прибыли с учётом комиссии Steam → решение о покупке → статус сделки.</p>
-          </div>
-        </div>
-      </div>
-
-      <div id="tab-steam" class="tab-content">
-        <div class="instruction-step">
-          <div class="step-num">1</div>
-          <div class="step-content">
-            <h4>Steam Web API Key</h4>
-            <p>Получите ключ на <a href="https://steamcommunity.com/dev/apikey" target="_blank">steamcommunity.com/dev/apikey</a>. Нужен для получения информации об аккаунте.</p>
-          </div>
-        </div>
-        <div class="instruction-step">
-          <div class="step-num">2</div>
-          <div class="step-content">
-            <h4>Steam Guard (Shared Secret & Identity Secret)</h4>
-            <p>Для реальной торговли нужны секретные ключи Steam Guard. Их можно извлечь из мобильного приложения Steam (файл <code>maFiles</code>). <strong>Храните их в безопасности!</strong></p>
-            <p style="margin-top:8px">Поля <code>shared_secret</code> и <code>identity_secret</code> нужны для подтверждения покупок и продаж.</p>
-          </div>
-        </div>
-        <div class="instruction-step">
-          <div class="step-num">3</div>
-          <div class="step-content">
-            <h4>Валюта</h4>
-            <p>Выберите валюту: <code>5</code> = Рубли (RUB), <code>1</code> = Доллары (USD), <code>3</code> = Евро (EUR), <code>18</code> = Гривны (UAH).</p>
-          </div>
-        </div>
-      </div>
-
-      <div id="tab-telegram" class="tab-content">
-        <div class="instruction-step">
-          <div class="step-num">1</div>
-          <div class="step-content">
-            <h4>Создайте Telegram бота</h4>
-            <p>Напишите <a href="https://t.me/BotFather" target="_blank">@BotFather</a> в Telegram → /newbot → введите название → скопируйте токен вида <code>1234567890:ABC-DEF...</code></p>
-          </div>
-        </div>
-        <div class="instruction-step">
-          <div class="step-num">2</div>
-          <div class="step-content">
-            <h4>Получите Chat ID</h4>
-            <p>Напишите боту любое сообщение, затем откройте в браузере: <code>https://api.telegram.org/bot&lt;ВАШ_ТОКЕН&gt;/getUpdates</code>. Найдите <code>"chat":{"id": 123456789}</code> — это ваш Chat ID.</p>
-          </div>
-        </div>
-        <div class="instruction-step">
-          <div class="step-num">3</div>
-          <div class="step-content">
-            <h4>Проверьте подключение</h4>
-            <p>После ввода токена и Chat ID нажмите кнопку <strong>"📨 Тест"</strong> ниже — в Telegram придёт тестовое сообщение.</p>
-          </div>
-        </div>
-      </div>
-
-      <div id="tab-strategy" class="tab-content">
-        <div class="instruction-step">
-          <div class="step-num">💡</div>
-          <div class="step-content">
-            <h4>Как работает стратегия покупки</h4>
-            <p>Бот сравнивает <strong>минимальную цену листинга</strong> со <strong>средней рыночной ценой</strong>. Если скидка больше порога (например 17%), рассчитывается чистая прибыль с учётом комиссии Steam 15%.</p>
-            <p style="margin-top:8px">Формула: <code>прибыль = (цена_продажи × 0.85) - цена_покупки</code></p>
-            <p style="margin-top:8px"><strong>Минимум 17%</strong> — этого достаточно чтобы покрыть комиссию Steam и получить небольшую прибыль. При 17% скидки вы в +2% после комиссии.</p>
-          </div>
-        </div>
-        <div class="instruction-step">
-          <div class="step-num">📊</div>
-          <div class="step-content">
-            <h4>Стратегии продажи</h4>
-            <p><strong>По рыночной цене</strong> — выставляете по средней цене рынка. Продаётся дольше, но прибыль максимальная.</p>
-            <p style="margin-top:6px"><strong>Рыночная цена −N%</strong> — чуть ниже рынка. Продаётся быстрее, прибыль немного меньше.</p>
-          </div>
-        </div>
-      </div>
-
-      <div id="tab-modes" class="tab-content">
-        <div class="instruction-step">
-          <div class="step-num">🧪</div>
-          <div class="step-content">
-            <h4>ТЕСТОВЫЙ режим</h4>
-            <p>Бот использует <strong>виртуальный баланс</strong> который вы указываете. Мониторинг, расчёты, логи — всё настоящее. Реальные покупки и продажи <strong>не совершаются</strong>. Идеально чтобы проверить стратегию перед реальным запуском.</p>
-          </div>
-        </div>
-        <div class="instruction-step">
-          <div class="step-num">🔴</div>
-          <div class="step-content">
-            <h4>LIVE (Реальный) режим</h4>
-            <p>Бот использует <strong>ваш реальный Steam баланс</strong> и совершает настоящие покупки и продажи. Для работы необходимы: Steam логин, пароль, Steam Guard секреты. <strong>Используйте осторожно!</strong></p>
-          </div>
-        </div>
-      </div>
-    </div>
+  <div class="settings-tabs">
+    <button class="settings-tab active" onclick="showTab('items',event)">📦 Предметы</button>
+    <button class="settings-tab" onclick="showTab('strategy',event)">📈 Стратегия</button>
+    <button class="settings-tab" onclick="showTab('mode',event)">🔄 Режим</button>
+    <button class="settings-tab" onclick="showTab('steam',event)">🎮 Steam</button>
+    <button class="settings-tab" onclick="showTab('telegram',event)">📱 Telegram</button>
   </div>
 
-  <!-- ── ITEMS ── -->
-  <div class="card mb-16">
-    <div class="card-header">📦 Предметы для мониторинга</div>
-    <div class="card-body">
+  <form id="settings-form">
 
-      <div class="alert alert-info mb-16">
-        ℹ️ Введите название предмета Steam или вставьте ссылку на страницу Steam Market
-      </div>
+  <!-- ════════ TAB: ITEMS ════════ -->
+  <div id="panel-items" class="settings-panel active">
+    <div class="info-box">
+      <h4>📦 Предметы для мониторинга</h4>
+      Добавьте предметы, за которыми бот будет следить. Когда бот запущен, он проверяет цены каждого предмета с указанным интервалом.<br>
+      Используйте <strong>Сканер</strong> (вкладка в меню) чтобы быстро найти и добавить подходящие предметы.
+    </div>
 
-      <!-- Search / Add -->
-      <div class="grid-2 mb-16">
-        <div>
-          <div class="form-label">Поиск по Steam Market</div>
-          <div class="relative search-wrap">
-            <div class="flex gap-8">
-              <select id="app-id-select" class="form-control" style="width:140px;flex-shrink:0">
-                <option value="730">CS2</option>
-                <option value="570">Dota 2</option>
-                <option value="440">TF2</option>
-                <option value="252490">Rust</option>
-                <option value="578080">PUBG</option>
-              </select>
-              <input type="text" id="item-search-input" class="form-control" placeholder="Введите название предмета...">
+    <div class="card mb-16">
+      <div class="card-header">🔍 Поиск и добавление</div>
+      <div class="card-body">
+        <div class="grid-2 mb-16">
+          <div>
+            <div class="form-label">Поиск по Steam Market</div>
+            <div class="relative search-wrap">
+              <div class="flex gap-8">
+                <select id="app-id-select" class="form-control" style="width:140px;flex-shrink:0">
+                  <option value="730">CS2</option>
+                  <option value="570">Dota 2</option>
+                  <option value="440">TF2</option>
+                  <option value="252490">Rust</option>
+                  <option value="578080">PUBG</option>
+                </select>
+                <input type="text" id="item-search-input" class="form-control" placeholder="Введите название предмета...">
+              </div>
+              <div id="search-results" class="search-results" style="display:none;top:100%;left:0;right:0"></div>
             </div>
-            <div id="search-results" class="search-results" style="display:none;top:100%;left:0;right:0"></div>
+            <div class="form-hint">Введите минимум 3 символа для поиска</div>
           </div>
-          <div class="form-hint">Введите минимум 3 символа для поиска</div>
+          <div>
+            <div class="form-label">Или вставьте название вручную</div>
+            <input type="text" id="item-manual-input" class="form-control" placeholder="Например: AK-47 | Redline (Field-Tested)">
+            <div class="form-hint">Точное название предмета как на Steam Market</div>
+          </div>
         </div>
-        <div>
-          <div class="form-label">Или вставьте название вручную</div>
-          <input type="text" id="item-manual-input" class="form-control" placeholder="Например: AK-47 | Redline (Field-Tested)">
-          <div class="form-hint">Точное название предмета как на Steam Market</div>
-        </div>
+        <button type="button" class="btn btn-green" id="add-item-btn" onclick="addItem()">+ Добавить предмет</button>
       </div>
+    </div>
 
-      <!-- Selected preview -->
-      <div id="selected-item-preview" class="flex gap-12 mb-16" style="display:none!important;align-items:center;background:var(--bg-card2);padding:12px;border-radius:8px;border:1px solid var(--border)">
-        <img id="selected-item-img" src="" style="width:48px;height:48px;object-fit:contain">
-        <div>
-          <div class="fw-bold" id="item-name-display"></div>
-          <div class="text-muted" style="font-size:11px" id="item-hash-display"></div>
-          <a href="#" id="item-url-display" target="_blank" class="text-blue" style="font-size:11px"></a>
-        </div>
-      </div>
-
-      <button class="btn btn-green" id="add-item-btn" onclick="addItem()">+ Добавить предмет</button>
-
-      <!-- Items list -->
-      {% if items %}
-      <div class="mt-16">
-        <div style="font-weight:600;margin-bottom:10px">Отслеживаемые предметы ({{ items|length }})</div>
+    <div class="card">
+      <div class="card-header">📋 Отслеживаемые предметы ({{ items|length }})</div>
+      <div class="card-body">
+        {% if items %}
         {% for item in items %}
         <div class="item-card" style="margin-bottom:8px">
           <img src="{{ item.image_url or '' }}" onerror="this.style.display='none'" alt="">
@@ -224,67 +127,76 @@
             <div class="item-card-name">{{ item.name }}</div>
             <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">{{ item.market_hash_name }}</div>
             <div class="flex gap-8">
-              <a href="{{ item.steam_url }}" target="_blank" class="btn btn-ghost btn-sm">🔗 Открыть на Steam</a>
+              <a href="{{ item.steam_url }}" target="_blank" class="btn btn-ghost btn-sm">🔗 Steam</a>
               <span class="badge" style="background:rgba(88,166,255,.1);color:var(--blue)">App {{ item.app_id }}</span>
             </div>
           </div>
           <div class="item-card-actions">
-            <button class="btn btn-sm" style="background:var(--red-dim);color:var(--red);border:1px solid var(--red-dim)" onclick="removeItem({{ item.id }}, '{{ item.name|replace("'","\\'")|safe }}')">✕ Удалить</button>
+            <button type="button" class="btn btn-sm" style="background:var(--red-dim);color:var(--red);border:1px solid var(--red-dim)" onclick="removeItem({{ item.id }}, '{{ item.name|replace("'","\\'")|safe }}')">✕ Удалить</button>
           </div>
         </div>
         {% endfor %}
+        {% else %}
+        <div class="empty-state">
+          <div class="emoji">📦</div>
+          <div>Нет предметов — добавьте через поиск выше или через <a href="/scanner">Сканер</a></div>
+        </div>
+        {% endif %}
       </div>
-      {% else %}
-      <div class="empty-state mt-16">
-        <div class="emoji">📦</div>
-        <div>Нет предметов — добавьте через поиск выше</div>
-      </div>
-      {% endif %}
     </div>
   </div>
 
-  <!-- ── SETTINGS FORM ── -->
-  <form id="settings-form">
-  <div class="grid-2">
+  <!-- ════════ TAB: STRATEGY ════════ -->
+  <div id="panel-strategy" class="settings-panel">
+    <div class="info-box">
+      <h4>📈 Как работает торговая стратегия</h4>
+      Бот сравнивает <strong>минимальную цену листинга</strong> (самый дешёвый лот) со <strong>средней рыночной ценой</strong> (медианой).<br>
+      <strong>Если скидка ≥ порога</strong> (например 17%), бот считает чистую прибыль с учётом 15% комиссии Steam.<br>
+      <br>
+      <strong>Формула:</strong> <code>прибыль = (цена_продажи × 0.85) - цена_покупки</code><br>
+      <strong>Минимальный порог 17%</strong> — покрывает комиссию 15% и даёт ~2% чистой прибыли.<br>
+      <br>
+      <strong>Стратегии продажи:</strong><br>
+      • <strong>По рыночной цене (медиана)</strong> — выставляете по средней цене. Продаётся дольше, но прибыль максимальная.<br>
+      • <strong>Рыночная минус N%</strong> — чуть ниже рынка. Продаётся быстрее.
+    </div>
 
-    <!-- Trading Settings -->
-    <div class="card">
-      <div class="card-header">📈 Настройки торговли</div>
+    <div class="card mb-16">
+      <div class="card-header">🎯 Параметры покупки</div>
       <div class="card-body">
-
         <div class="form-group">
           <label class="form-label">Порог покупки (%) <span style="color:var(--red)">*минимум 17%</span></label>
           <input type="number" name="buy_threshold" class="form-control" value="{{ settings.buy_threshold or '17' }}" min="17" max="50" step="0.5">
-          <div class="form-hint">Скидка от средней рыночной цены при которой бот покупает. Учтена комиссия Steam 15%: при пороге 17% реальная прибыль ~2%</div>
+          <div class="form-hint">Скидка от медианной цены при которой бот покупает. При 17% реальная прибыль ~2% после комиссии</div>
         </div>
-
         <div class="form-group">
           <label class="form-label">Интервал проверки цен (секунды)</label>
           <input type="number" name="check_interval" class="form-control" value="{{ settings.check_interval or '15' }}" min="10" max="300">
-          <div class="form-hint">Как часто проверять цены. Минимум 10 сек (иначе Steam заблокирует)</div>
+          <div class="form-hint">Как часто бот проверяет цены. Минимум 10с — иначе Steam заблокирует запросы</div>
         </div>
-
         <div class="form-group">
           <label class="form-label">Максимум покупок в час</label>
           <input type="number" name="max_buys_per_hour" class="form-control" value="{{ settings.max_buys_per_hour or '10' }}" min="1" max="50">
-          <div class="form-hint">Защита от чрезмерных трат. Рекомендуется 5-10</div>
+          <div class="form-hint">Защита от чрезмерных трат. Рекомендуется 5–10</div>
         </div>
+      </div>
+    </div>
 
+    <div class="card mb-16">
+      <div class="card-header">💰 Параметры продажи</div>
+      <div class="card-body">
         <div class="form-group">
           <label class="form-label">Стратегия продажи</label>
           <select name="sell_strategy" class="form-control">
             <option value="market" {% if settings.sell_strategy == 'market' %}selected{% endif %}>По рыночной цене (медиана)</option>
-            <option value="market_minus" {% if settings.sell_strategy == 'market_minus' %}selected{% endif %}>Рыночная цена минус N%</option>
+            <option value="market_minus" {% if settings.sell_strategy == 'market_minus' %}selected{% endif %}>Рыночная минус N%</option>
           </select>
-          <div class="form-hint">market = медианная цена, market_minus = медиана − указанный %</div>
         </div>
-
         <div class="form-group">
           <label class="form-label">Скидка при продаже (%)</label>
           <input type="number" name="sell_discount" class="form-control" value="{{ settings.sell_discount or '1' }}" min="0" max="10" step="0.5">
-          <div class="form-hint">Только если стратегия "Рыночная минус N%". 0 = по рыночной цене</div>
+          <div class="form-hint">Только для стратегии "Рыночная минус N%". 0 = по медианной цене</div>
         </div>
-
         <div class="form-group">
           <label class="form-label">Валюта Steam</label>
           <select name="steam_currency" class="form-control">
@@ -293,108 +205,237 @@
             <option value="3" {% if settings.steam_currency == '3' %}selected{% endif %}>🇪🇺 EUR (Евро)</option>
             <option value="18" {% if settings.steam_currency == '18' %}selected{% endif %}>🇺🇦 UAH (Гривны)</option>
           </select>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- Mode Settings -->
-    <div style="display:flex;flex-direction:column;gap:20px">
-      <div class="card">
-        <div class="card-header">🔄 Режим работы</div>
-        <div class="card-body">
-          <div class="form-group">
-            <label class="form-label">Текущий режим</label>
-            <div class="toggle-wrap">
-              <button type="button" class="toggle-btn {% if mode == 'TEST' %}active-test{% endif %}" onclick="setMode('TEST')">🧪 ТЕСТОВЫЙ</button>
-              <button type="button" class="toggle-btn {% if mode == 'LIVE' %}active-live{% endif %}" onclick="setMode('LIVE')">🔴 РЕАЛЬНЫЙ</button>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Виртуальный баланс для тестового режима ({{ currency_info.code }})</label>
-            <input type="number" name="virtual_balance" class="form-control" value="{{ settings.virtual_balance or '1000' }}" min="100" step="100">
-            <div class="form-hint">Сумма для симуляции в тестовом режиме. Текущий виртуальный баланс: <strong>{{ settings.current_virtual_balance or '1000' }} {{ currency_symbol }}</strong></div>
-          </div>
-
-          <button type="button" class="btn btn-ghost btn-sm" onclick="resetVirtualBalance()">🔄 Сбросить виртуальный баланс</button>
-
-          {% if mode == 'LIVE' %}
-          <div class="alert alert-error mt-16">
-            ⚠️ <div>LIVE режим активен — бот совершает РЕАЛЬНЫЕ сделки с реальными деньгами!</div>
-          </div>
-          {% else %}
-          <div class="alert alert-success mt-16">
-            ✅ <div>Тестовый режим активен — реальных транзакций нет.</div>
-          </div>
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header">🎮 Steam API (для LIVE режима)</div>
-        <div class="card-body">
-          <div class="form-group">
-            <label class="form-label">Steam API Key</label>
-            <input type="password" name="steam_api_key" class="form-control" value="{{ settings.steam_api_key or '' }}" placeholder="Ваш Steam Web API Key">
-            <div class="form-hint"><a href="https://steamcommunity.com/dev/apikey" target="_blank">Получить ключ →</a></div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Steam Логин</label>
-            <input type="text" name="steam_login" class="form-control" value="{{ settings.steam_login or '' }}" placeholder="Ваш логин Steam">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Steam Пароль</label>
-            <input type="password" name="steam_password" class="form-control" value="{{ settings.steam_password or '' }}" placeholder="Ваш пароль Steam">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Shared Secret (Steam Guard)</label>
-            <input type="password" name="steam_shared_secret" class="form-control" value="{{ settings.steam_shared_secret or '' }}" placeholder="Из maFiles → shared_secret">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Identity Secret (Steam Guard)</label>
-            <input type="password" name="steam_identity_secret" class="form-control" value="{{ settings.steam_identity_secret or '' }}" placeholder="Из maFiles → identity_secret">
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header">📱 Telegram уведомления</div>
-        <div class="card-body">
-          <div class="form-group">
-            <label class="form-label">Bot Token</label>
-            <input type="password" name="telegram_bot_token" class="form-control" value="{{ settings.telegram_bot_token or '' }}" placeholder="1234567890:ABC-DEF...">
-            <div class="form-hint">Получите у <a href="https://t.me/BotFather" target="_blank">@BotFather</a> → /newbot</div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Chat ID</label>
-            <input type="text" name="telegram_chat_id" class="form-control" value="{{ settings.telegram_chat_id or '' }}" placeholder="123456789">
-            <div class="form-hint">Узнать: напишите боту, откройте api.telegram.org/bot{TOKEN}/getUpdates</div>
-          </div>
-          <button type="button" class="btn btn-ghost" id="test-tg-btn" onclick="testTelegram()">📨 Тест отправки</button>
+          <div class="form-hint">Валюта в которой отображаются цены на Steam Market</div>
         </div>
       </div>
     </div>
-
   </div>
 
-  <div class="flex gap-12 mt-16">
+  <!-- ════════ TAB: MODE ════════ -->
+  <div id="panel-mode" class="settings-panel">
+    <div class="info-box">
+      <h4>🔄 Режимы работы бота</h4>
+      <strong>🧪 ТЕСТОВЫЙ:</strong> Бот мониторит РЕАЛЬНЫЕ цены, но использует виртуальный баланс. Покупки и продажи симулируются. Идеально для проверки стратегии.<br>
+      <strong>🔴 РЕАЛЬНЫЙ:</strong> Бот совершает настоящие покупки/продажи с вашего Steam аккаунта. Требует настройки Steam API (вкладка Steam).
+    </div>
+
+    <div class="card mb-16">
+      <div class="card-header">🔄 Текущий режим</div>
+      <div class="card-body">
+        <div class="form-group">
+          <div class="toggle-wrap">
+            <button type="button" class="toggle-btn {% if mode == 'TEST' %}active-test{% endif %}" onclick="setMode('TEST')">🧪 ТЕСТОВЫЙ</button>
+            <button type="button" class="toggle-btn {% if mode == 'LIVE' %}active-live{% endif %}" onclick="setMode('LIVE')">🔴 РЕАЛЬНЫЙ</button>
+          </div>
+        </div>
+
+        {% if mode == 'LIVE' %}
+        <div class="danger-box">
+          <h4>⚠️ LIVE режим активен</h4>
+          Бот будет совершать РЕАЛЬНЫЕ сделки с реальными деньгами!<br>
+          Убедитесь что Steam API ключ, логин, пароль и секреты Steam Guard заполнены во вкладке Steam.
+        </div>
+        {% else %}
+        <div style="background:rgba(63,185,80,0.06);border:1px solid rgba(63,185,80,0.15);border-radius:8px;padding:14px 16px;margin-bottom:16px;font-size:13px">
+          ✅ <strong>Тестовый режим</strong> — реальных транзакций нет. Бот симулирует покупки и продажи с виртуальным балансом.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card mb-16">
+      <div class="card-header">💰 Виртуальный баланс (тестовый режим)</div>
+      <div class="card-body">
+        <div class="form-group">
+          <label class="form-label">Начальный баланс ({{ currency_info.code }})</label>
+          <input type="number" name="virtual_balance" class="form-control" value="{{ settings.virtual_balance or '1000' }}" min="100" step="100">
+          <div class="form-hint">Сумма для симуляции. Применяется при сбросе баланса</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px">
+          <span style="font-size:13px">Текущий баланс: <strong>{{ settings.current_virtual_balance or '1000' }} {{ currency_symbol }}</strong></span>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="resetVirtualBalance()">🔄 Сбросить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════ TAB: STEAM ════════ -->
+  <div id="panel-steam" class="settings-panel">
+    <div class="info-box">
+      <h4>🎮 Подключение Steam аккаунта</h4>
+      Для работы в <strong>LIVE режиме</strong> необходимо подключить Steam аккаунт. Это позволит боту совершать реальные покупки и продажи на Steam Market.
+    </div>
+
+    <div class="card mb-16">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+        <span>🔑 Steam API Key</span>
+        <span class="status-indicator {% if settings.steam_api_key %}status-ok{% else %}status-err{% endif %}">
+          {{ '✓ Указан' if settings.steam_api_key else '✕ Не указан' }}
+        </span>
+      </div>
+      <div class="card-body">
+        <ol class="step-list">
+          <li>Откройте <a href="https://steamcommunity.com/dev/apikey" target="_blank">steamcommunity.com/dev/apikey</a></li>
+          <li>Введите любое "Domain Name" (например <code>localhost</code>)</li>
+          <li>Скопируйте полученный ключ и вставьте ниже</li>
+        </ol>
+        <div class="form-group">
+          <label class="form-label">Steam Web API Key</label>
+          <input type="password" name="steam_api_key" class="form-control" value="{{ settings.steam_api_key or '' }}" placeholder="Ваш Steam Web API Key">
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-16">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+        <span>🔐 Steam аккаунт</span>
+        <span class="status-indicator {% if settings.steam_login and settings.steam_password %}status-ok{% else %}status-warn{% endif %}">
+          {{ '✓ Данные указаны' if settings.steam_login and settings.steam_password else '⚠ Не заполнено' }}
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="warn-box">
+          <h4>⚠️ Безопасность</h4>
+          Данные хранятся в базе данных проекта. Не используйте основной аккаунт — создайте отдельный для торговли.
+        </div>
+        <div class="form-group">
+          <label class="form-label">Steam Логин</label>
+          <input type="text" name="steam_login" class="form-control" value="{{ settings.steam_login or '' }}" placeholder="Ваш логин Steam">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Steam Пароль</label>
+          <input type="password" name="steam_password" class="form-control" value="{{ settings.steam_password or '' }}" placeholder="Ваш пароль Steam">
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-16">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+        <span>🛡️ Steam Guard (2FA секреты)</span>
+        <span class="status-indicator {% if settings.steam_shared_secret and settings.steam_identity_secret %}status-ok{% elif settings.steam_shared_secret or settings.steam_identity_secret %}status-warn{% else %}status-err{% endif %}">
+          {% if settings.steam_shared_secret and settings.steam_identity_secret %}✓ Настроен
+          {% elif settings.steam_shared_secret or settings.steam_identity_secret %}⚠ Частично
+          {% else %}✕ Не настроен{% endif %}
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="info-box">
+          <h4>Что такое Shared Secret и Identity Secret?</h4>
+          Это секретные ключи из Steam Guard (мобильный аутентификатор). Они нужны для:<br>
+          • <strong>shared_secret</strong> — автоматическая генерация 2FA кодов для входа<br>
+          • <strong>identity_secret</strong> — автоматическое подтверждение обменов и лотов на маркете<br>
+          <br>
+          <strong>Как получить:</strong><br>
+          1. Используйте SDA (Steam Desktop Authenticator) или WinAuth<br>
+          2. Привяжите аутентификатор к вашему аккаунту<br>
+          3. Файл <code>maFiles/&lt;steamid&gt;.maFile</code> содержит оба секрета<br>
+          4. Откройте файл текстовым редактором и найдите <code>"shared_secret":"..."</code> и <code>"identity_secret":"..."</code>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Shared Secret</label>
+          <input type="password" name="steam_shared_secret" class="form-control" value="{{ settings.steam_shared_secret or '' }}" placeholder="Из maFiles → shared_secret">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Identity Secret</label>
+          <input type="password" name="steam_identity_secret" class="form-control" value="{{ settings.steam_identity_secret or '' }}" placeholder="Из maFiles → identity_secret">
+        </div>
+      </div>
+    </div>
+
+    {% if mode == 'LIVE' %}
+    {% set api_ok = settings.steam_api_key %}
+    {% set login_ok = settings.steam_login and settings.steam_password %}
+    {% set guard_ok = settings.steam_shared_secret and settings.steam_identity_secret %}
+    <div class="card">
+      <div class="card-header">📋 Статус подключения Steam</div>
+      <div class="card-body">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;font-size:13px">
+            <span style="color:{{ 'var(--green)' if api_ok else 'var(--red)' }}">{{ '✅' if api_ok else '❌' }}</span>
+            API Key {{ 'указан' if api_ok else 'не указан — бот не сможет получать данные об аккаунте' }}
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:13px">
+            <span style="color:{{ 'var(--green)' if login_ok else 'var(--red)' }}">{{ '✅' if login_ok else '❌' }}</span>
+            Логин/пароль {{ 'указаны' if login_ok else 'не указаны — бот не сможет войти в Steam' }}
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:13px">
+            <span style="color:{{ 'var(--green)' if guard_ok else 'var(--yellow)' }}">{{ '✅' if guard_ok else '⚠️' }}</span>
+            Steam Guard {{ 'настроен' if guard_ok else 'не настроен — автоподтверждение сделок невозможно' }}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ════════ TAB: TELEGRAM ════════ -->
+  <div id="panel-telegram" class="settings-panel">
+    <div class="info-box">
+      <h4>📱 Telegram уведомления</h4>
+      Бот отправляет уведомления в Telegram о каждом событии:<br>
+      • 🚀 <strong>Запуск/остановка</strong> бота<br>
+      • 🛒 <strong>Покупки</strong> — название предмета, цена, скидка, ожидаемая прибыль<br>
+      • 📤 <strong>Продажи</strong> — цена продажи, реальная прибыль, новый баланс<br>
+      • 💰 <strong>Изменения баланса</strong><br>
+      • ❌ <strong>Ошибки</strong> — критические проблемы требующие внимания<br>
+      <br>
+      Уведомления работают в <strong>обоих режимах</strong> (тестовом и реальном). Сообщения помечаются режимом: [🧪 ТЕСТ] или [🔴 РЕАЛЬНЫЙ].
+    </div>
+
+    <div class="card mb-16">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+        <span>🤖 Настройка Telegram бота</span>
+        <span class="status-indicator {% if settings.telegram_bot_token and settings.telegram_chat_id %}status-ok{% else %}status-warn{% endif %}">
+          {{ '✓ Настроен' if settings.telegram_bot_token and settings.telegram_chat_id else '⚠ Не настроен' }}
+        </span>
+      </div>
+      <div class="card-body">
+        <ol class="step-list">
+          <li>Откройте <a href="https://t.me/BotFather" target="_blank">@BotFather</a> в Telegram и напишите <code>/newbot</code></li>
+          <li>Придумайте имя и юзернейм бота (например <code>MySteamTrader_bot</code>)</li>
+          <li>Скопируйте полученный <strong>токен</strong> (вида <code>1234567890:ABC-DEF...</code>)</li>
+          <li>Напишите вашему новому боту любое сообщение</li>
+          <li>Откройте <code>https://api.telegram.org/bot<strong>ВАШ_ТОКЕН</strong>/getUpdates</code></li>
+          <li>Найдите в ответе <code>"chat":{"id": <strong>123456789</strong>}</code> — это ваш Chat ID</li>
+        </ol>
+        <div class="form-group">
+          <label class="form-label">Bot Token</label>
+          <input type="password" name="telegram_bot_token" class="form-control" id="tg-token-input" value="{{ settings.telegram_bot_token or '' }}" placeholder="1234567890:ABC-DEF...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Chat ID</label>
+          <input type="text" name="telegram_chat_id" class="form-control" id="tg-chatid-input" value="{{ settings.telegram_chat_id or '' }}" placeholder="123456789">
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button type="button" class="btn btn-ghost" id="test-tg-btn" onclick="testTelegram()">📨 Отправить тест</button>
+          <span id="tg-test-result" style="font-size:12px"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  </form>
+
+  <div class="flex gap-12" style="margin-top:20px;padding-bottom:30px">
     <button type="button" class="btn btn-green btn-lg" id="save-settings-btn" onclick="saveSettings()">💾 Сохранить все настройки</button>
     <a href="/" class="btn btn-ghost btn-lg">← Dashboard</a>
   </div>
 
-  </form>
 </div>
 
 <div id="toast-container"></div>
 <script src="/static/app.js"></script>
 <script>
   window.CURRENCY_SYMBOL = "{{ currency_symbol }}";
-  document.addEventListener('DOMContentLoaded', () => {
-    // Show selected item preview if already selected
-    const previewEl = document.getElementById('selected-item-preview');
-    if (previewEl) previewEl.style.display = 'none';
-  });
+
+  function showTab(name, e) {
+    document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
+    if (e && e.target) e.target.classList.add('active');
+    else document.querySelector('[onclick*="' + name + '"]')?.classList.add('active');
+    const panel = document.getElementById('panel-' + name);
+    if (panel) panel.classList.add('active');
+  }
 </script>
 </body>
 </html>

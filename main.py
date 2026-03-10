@@ -76,8 +76,31 @@ async def settings_page(request: Request):
 async def start_bot():
     if trading.is_running():
         return JSONResponse({"success": False, "message": "Бот уже запущен"})
+    items = db.get_items()
+    if not items:
+        return JSONResponse({"success": False, "message": "Нет предметов для мониторинга. Добавьте предметы в настройках или через сканер."})
+    settings = db.get_all_settings()
+    mode = "TEST" if settings.get("test_mode", "1") == "1" else "LIVE"
+    warnings = []
+    if mode == "LIVE":
+        if not settings.get("steam_api_key"):
+            return JSONResponse({"success": False, "message": "⚠️ LIVE режим: не указан Steam API Key. Перейдите в Настройки → Steam."})
+        if not settings.get("steam_login") or not settings.get("steam_password"):
+            return JSONResponse({"success": False, "message": "⚠️ LIVE режим: не указаны Steam логин/пароль. Перейдите в Настройки → Steam."})
+        if not settings.get("steam_shared_secret") or not settings.get("steam_identity_secret"):
+            warnings.append("Steam Guard секреты не настроены — автоматическое подтверждение сделок невозможно")
+    if mode == "TEST":
+        try:
+            balance = float(settings.get("current_virtual_balance", "1000"))
+        except (ValueError, TypeError):
+            balance = 0
+        if balance <= 0:
+            return JSONResponse({"success": False, "message": "Виртуальный баланс = 0. Сбросьте баланс в Настройках → Режим работы."})
     ok = await trading.start_bot()
-    return JSONResponse({"success": ok, "message": "Бот запущен" if ok else "Ошибка запуска"})
+    msg = "Бот запущен" if ok else "Ошибка запуска"
+    if warnings:
+        msg += " | ⚠️ " + "; ".join(warnings)
+    return JSONResponse({"success": ok, "message": msg})
 
 
 @app.post("/api/bot/stop")
@@ -282,12 +305,23 @@ async def scanner_scan(request: Request):
     max_results = min(int(data.get("max_results", 30)), 60)
     settings = db.get_all_settings()
     currency = int(settings.get("steam_currency", "5"))
-    results = await mkt.scan_market(
-        query=query, app_id=app_id, currency=currency,
-        min_price_usd=min_price_usd, threshold_pct=threshold_pct,
-        max_results=max_results
-    )
-    return JSONResponse({"success": True, "results": results, "count": len(results)})
+    try:
+        results = await mkt.scan_market(
+            query=query, app_id=app_id, currency=currency,
+            min_price_usd=min_price_usd, threshold_pct=threshold_pct,
+            max_results=max_results
+        )
+        profitable = [r for r in results if r.get("is_profitable")]
+        msg = ""
+        if not results:
+            msg = "Предметы не найдены. Попробуйте другой запрос или подождите 1-2 мин (Steam может ограничивать запросы)."
+        elif len(profitable) == 0:
+            msg = f"Найдено {len(results)} предметов, но ни один не имеет скидку ≥ {threshold_pct}% с прибылью после комиссии."
+        return JSONResponse({"success": True, "results": results, "count": len(results),
+                             "profitable_count": len(profitable), "message": msg})
+    except Exception as e:
+        return JSONResponse({"success": False, "results": [], "count": 0,
+                             "message": f"Ошибка сканирования: {str(e)}"})
 
 
 @app.get("/api/logs/api")

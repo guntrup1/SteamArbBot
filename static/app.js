@@ -242,14 +242,21 @@ async function doSearch(q) {
 
 function selectSearchItem(item) {
   selectedItem = item;
-  document.getElementById('item-search-input').value = item.name;
-  document.getElementById('search-results').style.display = 'none';
-  document.getElementById('item-name-display').textContent = item.name;
-  document.getElementById('item-hash-display').textContent = item.hash_name;
-  document.getElementById('item-url-display').textContent = item.steam_url;
-  document.getElementById('selected-item-preview').style.display = 'flex';
+  const input = document.getElementById('item-search-input');
+  if (input) input.value = item.name;
+  const results = document.getElementById('search-results');
+  if (results) results.style.display = 'none';
+  const nameEl = document.getElementById('item-name-display');
+  if (nameEl) nameEl.textContent = item.name;
+  const hashEl = document.getElementById('item-hash-display');
+  if (hashEl) hashEl.textContent = item.hash_name;
+  const urlEl = document.getElementById('item-url-display');
+  if (urlEl) urlEl.textContent = item.steam_url;
+  const preview = document.getElementById('selected-item-preview');
+  if (preview) preview.style.display = 'flex';
   if (item.icon_url) {
-    document.getElementById('selected-item-img').src = item.icon_url;
+    const img = document.getElementById('selected-item-img');
+    if (img) img.src = item.icon_url;
   }
 }
 
@@ -346,16 +353,24 @@ async function saveSettings() {
 
 async function testTelegram() {
   const btn = document.getElementById('test-tg-btn');
+  const resultEl = document.getElementById('tg-test-result');
   const token = document.querySelector('input[name="telegram_bot_token"]')?.value?.trim();
   const chatId = document.querySelector('input[name="telegram_chat_id"]')?.value?.trim();
   if (!token || !chatId) {
     showToast('❌ Введите токен и Chat ID', 'error');
+    if (resultEl) resultEl.innerHTML = '<span style="color:var(--red)">❌ Укажите токен и Chat ID</span>';
     return;
   }
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Отправка...'; }
+  if (resultEl) resultEl.innerHTML = '<span style="color:var(--text-muted)">Отправка...</span>';
   const res = await apiPost('/api/telegram/test', { token, chat_id: chatId });
   showToast(res.success ? '✅ ' + res.message : '❌ ' + res.message, res.success ? 'success' : 'error');
-  if (btn) { btn.disabled = false; btn.innerHTML = '📨 Тест'; }
+  if (resultEl) {
+    resultEl.innerHTML = res.success
+      ? '<span style="color:var(--green)">✅ Сообщение отправлено</span>'
+      : '<span style="color:var(--red)">❌ ' + (res.message || 'Ошибка') + '</span>';
+  }
+  if (btn) { btn.disabled = false; btn.innerHTML = '📨 Отправить тест'; }
 }
 
 async function resetVirtualBalance() {

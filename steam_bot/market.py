@@ -314,21 +314,33 @@ async def scan_market(query: str, app_id: int = 730, currency: int = 5,
                       min_price_usd: float = 1.0, threshold_pct: float = 17.0,
                       max_results: int = 30) -> list:
     """
-    Сканирует рынок Steam с пагинацией, находит предметы с потенциалом.
-    sell_price в ответе Steam всегда в центах USD, независимо от валюты.
-    Возвращает все найденные предметы, отсортированные по скидке.
+    Сканирует рынок Steam с пагинацией.
+    
+    Логика:
+    - sell_price в поиске Steam = центы USD (всегда)
+    - Медианная цена (median_price) из priceoverview = средняя рыночная за последние дни
+    - Скидка = (median - lowest) / median — это разница между текущей ценой и средним уровнем
+    - Если скидка >= threshold_pct, предмет подходит для слежки
+    
+    НЕ использует pricehistory (требует auth cookies, всегда возвращает 400).
+    Возвращает ВСЕ найденные предметы отсортированные по скидке.
     """
     PAGE_SIZE = 50
-    MAX_PAGES = 5
+    MAX_PAGES = 3
     min_price_cents = int(min_price_usd * 100)
 
     raw_candidates = []
+    consecutive_429 = 0
     async with aiohttp.ClientSession() as session:
         for page in range(MAX_PAGES):
             start = page * PAGE_SIZE
             results, total = await _fetch_search_page(session, app_id, query, start, PAGE_SIZE)
             if not results:
-                break
+                consecutive_429 += 1
+                if consecutive_429 >= 2:
+                    break
+                continue
+            consecutive_429 = 0
             for r in results:
                 sell_price = r.get("sell_price", 0)
                 if sell_price < min_price_cents:
@@ -361,11 +373,17 @@ async def scan_market(query: str, app_id: int = 730, currency: int = 5,
     unique_candidates = unique_candidates[:max_results * 2]
 
     results = []
+    fail_count = 0
+    MAX_CONSECUTIVE_FAILS = 5
     for item in unique_candidates:
         price_data = await get_item_price(item["hash_name"], app_id, currency)
 
         if not price_data.get("success"):
+            fail_count += 1
+            if fail_count >= MAX_CONSECUTIVE_FAILS:
+                break
             continue
+        fail_count = 0
 
         lowest = price_data["lowest_price"]
         median = price_data["median_price"]
@@ -381,11 +399,6 @@ async def scan_market(query: str, app_id: int = 730, currency: int = 5,
 
         discount = ((median - lowest) / median) * 100
         profit_info = calculate_profit(lowest, median)
-
-        history_stats = {}
-        history_data = await get_price_history(item["hash_name"], app_id, 1)
-        if history_data.get("success"):
-            history_stats = analyze_price_history(history_data["prices"], threshold_pct)
 
         results.append({
             "name": item["name"],
@@ -406,7 +419,6 @@ async def scan_market(query: str, app_id: int = 730, currency: int = 5,
             "profit": profit_info["profit"],
             "has_discount": discount >= threshold_pct,
             "is_profitable": profit_info["is_profitable"] and discount >= threshold_pct,
-            "history": history_stats,
         })
 
         if len(results) >= max_results:

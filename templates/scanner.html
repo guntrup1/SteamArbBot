@@ -214,9 +214,9 @@
               <th style="padding:10px 8px;text-align:left;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">МЕДИАНА</th>
               <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">СКИДКА</th>
               <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">ПРИБЫЛЬ</th>
-              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">ОБЪЁМ/НЕД</th>
+              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">ОБЪЁМ</th>
               <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">ЛОТОВ</th>
-              <th style="padding:10px 8px;text-align:left;color:var(--text-muted);font-size:11px;font-weight:600;min-width:160px;border-bottom:2px solid var(--border)">ИСТОРИЯ 7 ДНЕЙ</th>
+              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">СТАТУС</th>
               <th style="padding:10px 8px;border-bottom:2px solid var(--border)"></th>
             </tr>
           </thead>
@@ -316,14 +316,13 @@ async function startScan() {
     const sec = Math.floor((Date.now() - _scanStart) / 1000);
     elapsed.textContent = `${sec}с`;
     const phases = [
-      [0,   '🔍 Загрузка страниц поиска Steam...'],
-      [10,  '📋 Фильтрация кандидатов по цене...'],
-      [20,  '💰 Запросы цен (1.5–3 сек/предмет, защита от блокировки)...'],
-      [90,  '📊 Анализ истории продаж...'],
-      [160, '✅ Финальная сортировка...'],
+      [0,   '🔍 Поиск предметов на Steam Market...'],
+      [8,   '📋 Фильтрация по цене...'],
+      [15,  '💰 Получение цен (пауза 1.5–3с между запросами)...'],
+      [70,  '✅ Сортировка результатов...'],
     ];
     const phase = [...phases].reverse().find(([s]) => sec >= s);
-    const pct = Math.min(5 + (sec / 220) * 90, 90);
+    const pct = Math.min(5 + (sec / 100) * 90, 95);
     progressBar.style.width = pct + '%';
     const msg = phase ? phase[1] : 'Сканирование...';
     statusText.innerHTML = `<span class="spinner" style="width:14px;height:14px;border-width:2px"></span> ${msg}`;
@@ -345,8 +344,15 @@ async function startScan() {
     if (data.success) {
       _allResults = data.results || [];
       renderResults(_allResults);
+      if (data.message) {
+        showToast(data.message, data.profitable_count > 0 ? 'info' : 'warning');
+      }
+      if (data.profitable_count > 0) {
+        showToast(`Найдено ${data.profitable_count} подходящих предметов для слежки!`, 'success');
+      }
     } else {
-      showToast('Ошибка сканирования', 'error');
+      showToast(data.message || 'Ошибка сканирования', 'error');
+      if (_allResults.length > 0) renderResults(_allResults);
     }
   } catch (e) {
     clearInterval(_elapsedTimer);
@@ -363,7 +369,7 @@ async function startScan() {
 function filterResults() {
   const onlyProfitable = document.getElementById('only-profitable').checked;
   const threshold = parseFloat(document.getElementById('scan-threshold').value) || 17.0;
-  const filtered = onlyProfitable ? _allResults.filter(r => r.has_discount) : _allResults;
+  const filtered = onlyProfitable ? _allResults.filter(r => r.is_profitable) : _allResults;
   renderResults(filtered);
 }
 
@@ -391,27 +397,13 @@ function renderResults(results) {
     const discountBg = item.is_profitable ? 'rgba(63,185,80,0.15)' : item.has_discount ? 'rgba(210,153,34,0.15)' : 'transparent';
     const profitColor = item.net_profit_pct > 0 ? 'var(--green)' : item.net_profit_pct > -5 ? 'var(--yellow)' : 'var(--text-muted)';
 
-    const h = item.history || {};
-    const weekTotal = h.week_total || 0;
-    const atDiscount = h.at_discount || 0;
-    const atMedian = h.at_median_or_above || 0;
-    let histHtml;
-    if (weekTotal > 0) {
-      const discPct = Math.round(atDiscount / weekTotal * 100);
-      const medPct = Math.round(atMedian / weekTotal * 100);
-      histHtml = `
-        <div style="font-size:11px;margin-bottom:3px">
-          <span style="color:var(--text-muted)">${weekTotal} сделок</span>
-          <span style="margin-left:6px;color:var(--green)">↓${atDiscount} скидка</span>
-          <span style="margin-left:6px;color:var(--blue)">↑${atMedian} медиана</span>
-        </div>
-        <div style="display:flex;height:6px;border-radius:3px;overflow:hidden;gap:1px">
-          <div style="width:${discPct}%;background:var(--green);min-width:${atDiscount>0?2:0}px" title="По скидке: ${atDiscount}"></div>
-          <div style="width:${medPct}%;background:var(--blue);min-width:${atMedian>0?2:0}px" title="По медиане: ${atMedian}"></div>
-          <div style="flex:1;background:var(--border)"></div>
-        </div>`;
+    let statusHtml;
+    if (item.is_profitable) {
+      statusHtml = `<span style="background:rgba(63,185,80,0.15);color:var(--green);padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap">✅ Подходит</span>`;
+    } else if (item.has_discount) {
+      statusHtml = `<span style="background:rgba(210,153,34,0.15);color:var(--yellow);padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap">⚠️ Скидка есть</span>`;
     } else {
-      histHtml = `<span style="color:var(--text-muted);font-size:11px">нет данных</span>`;
+      statusHtml = `<span style="color:var(--text-muted);font-size:11px">—</span>`;
     }
 
     const imgHtml = item.icon_url
@@ -441,7 +433,7 @@ function renderResults(results) {
       </td>
       <td style="padding:8px 6px;text-align:center;font-weight:600">${item.volume_raw || item.volume}</td>
       <td style="padding:8px 6px;text-align:center;color:var(--text-muted)">${item.sell_listings}</td>
-      <td style="padding:8px 6px;min-width:160px">${histHtml}</td>
+      <td style="padding:8px 6px;text-align:center">${statusHtml}</td>
       <td style="padding:8px 6px;white-space:nowrap">
         <div style="display:flex;gap:5px">
           <a href="${escHtml(item.steam_url)}" target="_blank" class="btn btn-ghost" style="padding:4px 8px;font-size:11px">🔗</a>
