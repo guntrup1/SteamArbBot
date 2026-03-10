@@ -208,21 +208,18 @@ def get_statistics(test_mode=None):
 
     if test_mode is None:
         filter_clause = ""
-        params_all = ()
         params_today = (today + "%",)
     else:
-        tm_val = 1 if test_mode else 0
-        filter_clause = f"AND test_mode={tm_val}"
-        params_all = ()
-        params_today = (today + "%",)
+        filter_clause = "AND test_mode=?"
+        params_today = (today + "%", 1 if test_mode else 0)
 
-    c.execute(f"""SELECT
+    c.execute("""SELECT
         COUNT(*) as total_trades,
         SUM(CASE WHEN trade_type='buy' THEN 1 ELSE 0 END) as total_buys,
         SUM(CASE WHEN trade_type='sell' THEN 1 ELSE 0 END) as total_sells,
         SUM(CASE WHEN trade_type='sell' THEN profit_after_fee ELSE 0 END) as total_profit,
         SUM(CASE WHEN trade_type='sell' AND created_at LIKE ? THEN profit_after_fee ELSE 0 END) as daily_profit
-        FROM trades WHERE status='completed' {filter_clause}""",
+        FROM trades WHERE status='completed' """ + filter_clause,
         params_today
     )
     row = c.fetchone()

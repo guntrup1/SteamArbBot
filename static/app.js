@@ -58,11 +58,21 @@ function appendLog(entry) {
   const mode = entry.mode || 'TEST';
   const modeClass = mode === 'LIVE' ? 'live' : 'test';
 
-  el.innerHTML = `
-    <span class="log-time">${escapeHtml(entry.time || '')}</span>
-    <span class="log-mode ${modeClass}">[${escapeHtml(mode)}]</span>
-    <span class="log-msg">${escapeHtml(entry.message || '')}</span>
-  `;
+  const timeSpan = document.createElement('span');
+  timeSpan.className = 'log-time';
+  timeSpan.textContent = entry.time || '';
+
+  const modeSpan = document.createElement('span');
+  modeSpan.className = `log-mode ${modeClass}`;
+  modeSpan.textContent = `[${mode}]`;
+
+  const msgSpan = document.createElement('span');
+  msgSpan.className = 'log-msg';
+  msgSpan.textContent = entry.message || '';
+
+  el.appendChild(timeSpan);
+  el.appendChild(modeSpan);
+  el.appendChild(msgSpan);
 
   container.appendChild(el);
 
@@ -379,7 +389,10 @@ function showToast(msg, type = 'info') {
   if (!container) return;
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
-  toast.innerHTML = `<span style="flex:1">${escapeHtml(msg)}</span>`;
+  const span = document.createElement('span');
+  span.style.flex = '1';
+  span.textContent = msg;
+  toast.appendChild(span);
   container.appendChild(toast);
   setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity .3s'; setTimeout(() => toast.remove(), 300); }, 4000);
 }
