@@ -492,24 +492,6 @@ select.form-control { cursor: pointer; }
   background: rgba(255,255,255,0.02);
 }
 
-/* ───── TOAST ───── */
-.toast {
-  background: var(--bg-card2);
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 10px 16px;
-  border-radius: 8px;
-  font-size: 13px;
-  opacity: 0;
-  transform: translateY(8px);
-  transition: all .25s;
-  max-width: 320px;
-  box-shadow: var(--shadow);
-}
-.toast.show { opacity: 1; transform: translateY(0); }
-.toast.toast-success { border-color: var(--green); }
-.toast.toast-error { border-color: var(--red); }
-.toast.toast-info { border-color: var(--blue); }
 
 /* ───── BTN BLUE ───── */
 .btn-blue {

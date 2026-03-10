@@ -2,6 +2,10 @@ import aiohttp
 import asyncio
 import time
 import random
+import re
+import json
+from datetime import datetime, timedelta
+from urllib.parse import quote
 from steam_bot.config import STEAM_PRICE_API, STEAM_SEARCH_API, STEAM_COMMISSION
 
 _price_cache = {}
@@ -142,47 +146,130 @@ async def get_price_history(market_hash_name: str, app_id: int = 730, currency: 
     return {"success": False, "error": f"HTTP {status} (требует авторизации Steam)"}
 
 
-def analyze_price_history(prices: list, threshold_pct: float = 17.0) -> dict:
-    """
-    Анализ истории цен: считает сделки за 7 дней.
-    prices — список [[date_str, price, count], ...]
-    Возвращает статистику по продажам выше/ниже медианы.
-    """
+_history_cache = {}
+HISTORY_CACHE_TTL = 600
+
+
+async def get_price_history_from_page(session: aiohttp.ClientSession, app_id: int,
+                                       hash_name: str) -> list:
+    cache_key = f"{app_id}:{hash_name}"
+    now = time.time()
+    if cache_key in _history_cache:
+        cached_at, cached_data = _history_cache[cache_key]
+        if now - cached_at < HISTORY_CACHE_TTL:
+            return cached_data
+
+    url = f"https://steamcommunity.com/market/listings/{app_id}/{quote(hash_name, safe='')}"
+    try:
+        async with _steam_sem:
+            async with session.get(url, headers={
+                "User-Agent": _STEAM_HEADERS["User-Agent"],
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.01",
+                "Accept-Language": "en-US,en;q=0.9",
+            }, timeout=aiohttp.ClientTimeout(total=20)) as resp:
+                if resp.status == 200:
+                    html = await resp.text()
+                    m = re.search(r'var line1\s*=\s*(\[.+?\]);', html, re.DOTALL)
+                    if m:
+                        try:
+                            data = json.loads(m.group(1))
+                            _history_cache[cache_key] = (now, data)
+                            _log_api("listing_page/history", {"app_id": app_id, "hash_name": hash_name},
+                                     200, {"entries": len(data)})
+                            return data
+                        except json.JSONDecodeError:
+                            pass
+                    _log_api("listing_page/history", {"app_id": app_id, "hash_name": hash_name},
+                             200, None, "var line1 not found in HTML")
+                elif resp.status == 429:
+                    _log_api("listing_page/history", {"app_id": app_id, "hash_name": hash_name},
+                             429, None, "Rate limited")
+                else:
+                    _log_api("listing_page/history", {"app_id": app_id, "hash_name": hash_name},
+                             resp.status, None, f"HTTP {resp.status}")
+            await asyncio.sleep(random.uniform(RATE_DELAY_MIN, RATE_DELAY_MAX))
+    except Exception as e:
+        _log_api("listing_page/history", {"app_id": app_id, "hash_name": hash_name},
+                 0, None, str(e))
+    return []
+
+
+def analyze_price_history(prices: list, median_price: float, threshold_pct: float = 17.0,
+                           days: int = 14) -> dict:
     if not prices:
-        return {}
+        return {"has_history": False}
 
-    from datetime import datetime, timedelta
-    cutoff = datetime.utcnow() - timedelta(days=7)
+    cutoff = datetime.utcnow() - timedelta(days=days)
 
-    week_prices = []
+    recent_prices = []
     for entry in prices:
         try:
             date_str = entry[0]
             price = float(entry[1])
-            count = int(entry[2]) if len(entry) > 2 else 1
-            dt = datetime.strptime(date_str[:10], "%b %d %Y")
+            count_str = entry[2] if len(entry) > 2 else "1"
+            count = int(str(count_str).replace(",", ""))
+            dt = datetime.strptime(date_str[:11].strip(), "%b %d %Y")
             if dt >= cutoff:
-                week_prices.extend([price] * count)
+                recent_prices.append({"price": price, "count": count, "date": dt})
         except Exception:
             continue
 
-    if not week_prices:
-        return {"week_total": 0, "week_median": 0, "at_discount": 0, "at_median_or_above": 0}
+    if not recent_prices:
+        return {"has_history": True, "total_sales": 0, "discount_sales": 0,
+                "had_recent_discounts": False, "period_days": days}
 
-    week_prices.sort()
-    mid = len(week_prices) // 2
-    median = (week_prices[mid] + week_prices[~mid]) / 2
+    weighted_pairs = [(s["price"], s["count"]) for s in recent_prices]
+    weighted_pairs.sort(key=lambda x: x[0])
+    total_volume = sum(c for _, c in weighted_pairs)
 
-    discount_threshold = median * (1 - threshold_pct / 100)
-    at_discount = sum(1 for p in week_prices if p <= discount_threshold)
-    at_median_or_above = sum(1 for p in week_prices if p >= median * 0.95)
+    cumulative = 0
+    history_median = weighted_pairs[0][0]
+    mid = total_volume / 2
+    for price, count in weighted_pairs:
+        cumulative += count
+        if cumulative >= mid:
+            history_median = price
+            break
+
+    if history_median <= 0:
+        return {"has_history": True, "total_sales": total_volume, "discount_sales": 0,
+                "had_recent_discounts": False, "period_days": days}
+
+    discount_threshold = history_median * (1 - threshold_pct / 100)
+
+    discounted_sales = []
+    min_price_seen = float('inf')
+    max_discount_seen = 0
+
+    for s in recent_prices:
+        if s["price"] <= discount_threshold:
+            disc_pct = ((history_median - s["price"]) / history_median) * 100
+            discounted_sales.append({"price": s["price"], "count": s["count"],
+                                     "date": s["date"], "discount_pct": disc_pct})
+            if s["price"] < min_price_seen:
+                min_price_seen = s["price"]
+            if disc_pct > max_discount_seen:
+                max_discount_seen = disc_pct
+
+    discount_volume = sum(s["count"] for s in discounted_sales)
+
+    last_discount_date = None
+    if discounted_sales:
+        discounted_sales.sort(key=lambda x: x["date"], reverse=True)
+        last_discount_date = discounted_sales[0]["date"].strftime("%d.%m")
 
     return {
-        "week_total": len(week_prices),
-        "week_median": round(median, 4),
-        "at_discount": at_discount,
-        "at_median_or_above": at_median_or_above,
-        "discount_pct": round(at_discount / len(week_prices) * 100, 1) if week_prices else 0,
+        "has_history": True,
+        "period_days": days,
+        "total_sales": total_volume,
+        "discount_sales": discount_volume,
+        "discount_entries": len(discounted_sales),
+        "had_recent_discounts": len(discounted_sales) > 0,
+        "history_median": round(history_median, 2),
+        "min_price_seen": round(min_price_seen, 2) if min_price_seen != float('inf') else 0,
+        "max_discount_pct": round(max_discount_seen, 1),
+        "last_discount_date": last_discount_date,
+        "discount_frequency_pct": round(discount_volume / total_volume * 100, 1) if total_volume > 0 else 0,
     }
 
 
@@ -331,17 +418,18 @@ async def scan_market(query: str, app_id: int = 730, currency: int = 5,
 
     raw_candidates = []
     consecutive_429 = 0
-    async with aiohttp.ClientSession() as session:
+    session = aiohttp.ClientSession()
+    try:
         for page in range(MAX_PAGES):
             start = page * PAGE_SIZE
-            results, total = await _fetch_search_page(session, app_id, query, start, PAGE_SIZE)
-            if not results:
+            search_results, total = await _fetch_search_page(session, app_id, query, start, PAGE_SIZE)
+            if not search_results:
                 consecutive_429 += 1
                 if consecutive_429 >= 2:
                     break
                 continue
             consecutive_429 = 0
-            for r in results:
+            for r in search_results:
                 sell_price = r.get("sell_price", 0)
                 if sell_price < min_price_cents:
                     continue
@@ -363,66 +451,98 @@ async def scan_market(query: str, app_id: int = 730, currency: int = 5,
             if len(raw_candidates) >= max_results * 2 or start + PAGE_SIZE >= total:
                 break
 
-    seen = set()
-    unique_candidates = []
-    for item in raw_candidates:
-        if item["hash_name"] not in seen:
-            seen.add(item["hash_name"])
-            unique_candidates.append(item)
+        seen = set()
+        unique_candidates = []
+        for item in raw_candidates:
+            if item["hash_name"] not in seen:
+                seen.add(item["hash_name"])
+                unique_candidates.append(item)
 
-    unique_candidates = unique_candidates[:max_results * 2]
+        unique_candidates = unique_candidates[:max_results * 2]
 
-    results = []
-    fail_count = 0
-    MAX_CONSECUTIVE_FAILS = 5
-    for item in unique_candidates:
-        price_data = await get_item_price(item["hash_name"], app_id, currency)
-
-        if not price_data.get("success"):
-            fail_count += 1
-            if fail_count >= MAX_CONSECUTIVE_FAILS:
-                break
-            continue
+        results = []
         fail_count = 0
+        history_fail_count = 0
+        MAX_CONSECUTIVE_FAILS = 5
+        MAX_HISTORY_FAILS = 3
+        fetch_history = True
 
-        lowest = price_data["lowest_price"]
-        median = price_data["median_price"]
+        for item in unique_candidates:
+            price_data = await get_item_price(item["hash_name"], app_id, currency)
 
-        if lowest <= 0 or median <= 0:
-            continue
+            if not price_data.get("success"):
+                fail_count += 1
+                if fail_count >= MAX_CONSECUTIVE_FAILS:
+                    break
+                continue
+            fail_count = 0
 
-        volume_str = str(price_data.get("volume", "0")).replace(",", "").replace(" ", "")
-        try:
-            volume = int(volume_str)
-        except Exception:
-            volume = 0
+            lowest = price_data["lowest_price"]
+            median = price_data["median_price"]
 
-        discount = ((median - lowest) / median) * 100
-        profit_info = calculate_profit(lowest, median)
+            if lowest <= 0 or median <= 0:
+                continue
 
-        results.append({
-            "name": item["name"],
-            "hash_name": item["hash_name"],
-            "app_id": app_id,
-            "icon_url": item["icon_url"],
-            "steam_url": item["steam_url"],
-            "sell_listings": item["sell_listings"],
-            "sell_price_usd": round(item["sell_price_usd"], 2),
-            "lowest_price": lowest,
-            "lowest_price_raw": price_data["lowest_price_raw"],
-            "median_price": median,
-            "median_price_raw": price_data["median_price_raw"],
-            "volume": volume,
-            "volume_raw": price_data.get("volume", "0"),
-            "discount_pct": round(discount, 1),
-            "net_profit_pct": profit_info["net_profit_percent"],
-            "profit": profit_info["profit"],
-            "has_discount": discount >= threshold_pct,
-            "is_profitable": profit_info["is_profitable"] and discount >= threshold_pct,
-        })
+            volume_str = str(price_data.get("volume", "0")).replace(",", "").replace(" ", "")
+            try:
+                volume = int(volume_str)
+            except Exception:
+                volume = 0
 
-        if len(results) >= max_results:
-            break
+            discount = ((median - lowest) / median) * 100
+            profit_info = calculate_profit(lowest, median)
 
-    results.sort(key=lambda x: (-x["discount_pct"], -x["volume"]))
-    return results
+            history_info = {"has_history": False}
+            if fetch_history:
+                history_data = await get_price_history_from_page(session, app_id, item["hash_name"])
+                if history_data:
+                    history_info = analyze_price_history(history_data, median, threshold_pct, days=14)
+                    history_fail_count = 0
+                else:
+                    history_fail_count += 1
+                    if history_fail_count >= MAX_HISTORY_FAILS:
+                        fetch_history = False
+
+            is_currently_profitable = profit_info["is_profitable"] and discount >= threshold_pct
+            had_recent_discounts = history_info.get("had_recent_discounts", False)
+            worth_tracking = is_currently_profitable or had_recent_discounts
+
+            results.append({
+                "name": item["name"],
+                "hash_name": item["hash_name"],
+                "app_id": app_id,
+                "icon_url": item["icon_url"],
+                "steam_url": item["steam_url"],
+                "sell_listings": item["sell_listings"],
+                "sell_price_usd": round(item["sell_price_usd"], 2),
+                "lowest_price": lowest,
+                "lowest_price_raw": price_data["lowest_price_raw"],
+                "median_price": median,
+                "median_price_raw": price_data["median_price_raw"],
+                "volume": volume,
+                "volume_raw": price_data.get("volume", "0"),
+                "discount_pct": round(discount, 1),
+                "net_profit_pct": profit_info["net_profit_percent"],
+                "profit": profit_info["profit"],
+                "has_discount": discount >= threshold_pct,
+                "is_profitable": is_currently_profitable,
+                "history": history_info,
+                "had_recent_discounts": had_recent_discounts,
+                "worth_tracking": worth_tracking,
+            })
+
+            if len(results) >= max_results:
+                break
+
+        def sort_key(x):
+            if x["is_profitable"]:
+                return (0, -x["discount_pct"], -x["volume"])
+            elif x["had_recent_discounts"]:
+                return (1, -x["history"].get("max_discount_pct", 0), -x["volume"])
+            else:
+                return (2, -x["discount_pct"], -x["volume"])
+
+        results.sort(key=sort_key)
+        return results
+    finally:
+        await session.close()

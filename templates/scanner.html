@@ -201,6 +201,9 @@
           <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:5px;cursor:pointer">
             <input type="checkbox" id="only-profitable" onchange="filterResults()"> Только прибыльные (≥ порога)
           </label>
+          <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:5px;cursor:pointer">
+            <input type="checkbox" id="only-worth-tracking" onchange="filterResults()"> Стоит отслеживать
+          </label>
           <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px" onclick="startScan()">↻ Обновить</button>
         </div>
       </div>
@@ -216,6 +219,7 @@
               <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">ПРИБЫЛЬ</th>
               <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">ОБЪЁМ</th>
               <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">ЛОТОВ</th>
+              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">ИСТОРИЯ (14д)</th>
               <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">СТАТУС</th>
               <th style="padding:10px 8px;border-bottom:2px solid var(--border)"></th>
             </tr>
@@ -271,14 +275,82 @@ let _elapsedTimer = null;
 
 const WEAPON_PRESETS = {};
 
+const _errorLog = [];
+const MAX_ERROR_LOG = 50;
+
 function showToast(msg, type = 'info') {
-  const c = document.getElementById('toast-container');
-  const t = document.createElement('div');
-  t.className = `toast toast-${type}`;
-  t.textContent = msg;
-  c.appendChild(t);
-  setTimeout(() => t.classList.add('show'), 10);
-  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3500);
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  const span = document.createElement('span');
+  span.style.flex = '1';
+  span.textContent = msg;
+  toast.appendChild(span);
+  if (type === 'error' || type === 'warning') {
+    const closeBtn = document.createElement('span');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = 'cursor:pointer;margin-left:8px;opacity:0.7;font-size:14px';
+    closeBtn.onclick = () => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 200); };
+    toast.appendChild(closeBtn);
+  }
+  container.appendChild(toast);
+  if (type === 'error' || type === 'warning') {
+    _errorLog.unshift({ time: new Date().toLocaleTimeString('ru-RU'), msg, type });
+    if (_errorLog.length > MAX_ERROR_LOG) _errorLog.pop();
+    updateErrorPanel();
+    setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity .3s'; setTimeout(() => toast.remove(), 300); }, 15000);
+  } else {
+    setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity .3s'; setTimeout(() => toast.remove(), 300); }, 4000);
+  }
+}
+
+function updateErrorPanel() {
+  let panel = document.getElementById('error-log-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'error-log-panel';
+    panel.style.cssText = 'position:fixed;bottom:24px;left:24px;width:380px;max-height:300px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;z-index:9998;font-size:12px;display:flex;flex-direction:column;box-shadow:0 4px 20px rgba(0,0,0,0.4)';
+    panel.innerHTML = `
+      <div style="padding:8px 12px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);cursor:pointer;user-select:none" onclick="toggleErrorPanel()">
+        <span style="font-weight:600;color:var(--red)">⚠ Логи ошибок (<span id="error-log-count">0</span>)</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span id="error-log-toggle" style="font-size:14px;color:var(--text-muted)">▼</span>
+          <span style="font-size:14px;color:var(--text-muted);cursor:pointer" onclick="event.stopPropagation();clearErrorLog()">🗑</span>
+        </div>
+      </div>
+      <div id="error-log-body" style="overflow-y:auto;max-height:250px;padding:4px 0"></div>
+    `;
+    document.body.appendChild(panel);
+  }
+  const countEl = document.getElementById('error-log-count');
+  if (countEl) countEl.textContent = _errorLog.length;
+  const body = document.getElementById('error-log-body');
+  if (body) {
+    body.innerHTML = _errorLog.map(e => {
+      const color = e.type === 'error' ? 'var(--red)' : 'var(--yellow)';
+      return `<div style="padding:4px 12px;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;gap:8px;align-items:flex-start">
+        <span style="color:var(--text-muted);white-space:nowrap;min-width:55px">${e.time}</span>
+        <span style="color:${color};word-break:break-word">${escHtml(e.msg)}</span>
+      </div>`;
+    }).join('');
+  }
+  panel.style.display = _errorLog.length > 0 ? 'flex' : 'none';
+}
+
+function toggleErrorPanel() {
+  const body = document.getElementById('error-log-body');
+  const toggle = document.getElementById('error-log-toggle');
+  if (body) {
+    const hidden = body.style.display === 'none';
+    body.style.display = hidden ? 'block' : 'none';
+    if (toggle) toggle.textContent = hidden ? '▼' : '▲';
+  }
+}
+
+function clearErrorLog() {
+  _errorLog.length = 0;
+  updateErrorPanel();
 }
 
 function setPreset(query, appId, changeGame = false) {
@@ -368,8 +440,14 @@ async function startScan() {
 
 function filterResults() {
   const onlyProfitable = document.getElementById('only-profitable').checked;
-  const threshold = parseFloat(document.getElementById('scan-threshold').value) || 17.0;
-  const filtered = onlyProfitable ? _allResults.filter(r => r.is_profitable) : _allResults;
+  const onlyWorthTracking = document.getElementById('only-worth-tracking').checked;
+  let filtered = _allResults;
+  if (onlyProfitable) {
+    filtered = filtered.filter(r => r.is_profitable);
+  }
+  if (onlyWorthTracking) {
+    filtered = filtered.filter(r => r.worth_tracking);
+  }
   renderResults(filtered);
 }
 
@@ -382,7 +460,9 @@ function renderResults(results) {
 
   const profitable = results.filter(r => r.is_profitable).length;
   const withDiscount = results.filter(r => r.has_discount).length;
-  summary.textContent = `${results.length} предметов · ${withDiscount} с нужной скидкой · ${profitable} прибыльных`;
+  const withHistory = results.filter(r => r.had_recent_discounts).length;
+  const worthTracking = results.filter(r => r.worth_tracking).length;
+  summary.textContent = `${results.length} предметов · ${profitable} прибыльных · ${withHistory} с историей скидок · ${worthTracking} стоит отслеживать`;
 
   if (results.length === 0) {
     tbody.innerHTML = '';
@@ -399,18 +479,36 @@ function renderResults(results) {
 
     let statusHtml;
     if (item.is_profitable) {
-      statusHtml = `<span style="background:rgba(63,185,80,0.15);color:var(--green);padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap">✅ Подходит</span>`;
+      statusHtml = `<span style="background:rgba(63,185,80,0.15);color:var(--green);padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap">✅ Покупать</span>`;
+    } else if (item.had_recent_discounts && !item.has_discount) {
+      statusHtml = `<span style="background:rgba(130,80,223,0.15);color:#b87aff;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap">👁 Следить</span>`;
     } else if (item.has_discount) {
-      statusHtml = `<span style="background:rgba(210,153,34,0.15);color:var(--yellow);padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap">⚠️ Скидка есть</span>`;
+      statusHtml = `<span style="background:rgba(210,153,34,0.15);color:var(--yellow);padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap">⚠️ Скидка</span>`;
     } else {
       statusHtml = `<span style="color:var(--text-muted);font-size:11px">—</span>`;
+    }
+
+    let historyHtml = '';
+    const h = item.history;
+    if (h && h.has_history) {
+      if (h.had_recent_discounts) {
+        historyHtml = `<div style="font-size:11px;line-height:1.4">
+          <div style="color:#b87aff;font-weight:600">${h.discount_sales} продаж ≤-${h.max_discount_pct}%</div>
+          <div style="color:var(--text-muted)">из ${h.total_sales} за 14д</div>
+          <div style="color:var(--text-muted)">посл.: ${h.last_discount_date || '—'}</div>
+        </div>`;
+      } else {
+        historyHtml = `<span style="color:var(--text-muted);font-size:11px">${h.total_sales} продаж, без скидок</span>`;
+      }
+    } else {
+      historyHtml = `<span style="color:var(--text-muted);font-size:11px">—</span>`;
     }
 
     const imgHtml = item.icon_url
       ? `<img src="${item.icon_url}" style="width:36px;height:36px;object-fit:contain;border-radius:4px" onerror="this.style.display='none'">`
       : `<div style="width:36px;height:36px;background:var(--bg-card2);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:16px">🔷</div>`;
 
-    const rowClass = `result-row${item.is_profitable ? ' profitable' : ''}`;
+    const rowClass = `result-row${item.is_profitable ? ' profitable' : item.had_recent_discounts ? ' history-discount' : ''}`;
     const rankBadge = idx < 3 && item.is_profitable
       ? `<span style="font-size:10px;background:var(--green);color:#0d1117;padding:1px 5px;border-radius:3px;margin-left:4px">TOP</span>`
       : '';
@@ -433,11 +531,12 @@ function renderResults(results) {
       </td>
       <td style="padding:8px 6px;text-align:center;font-weight:600">${item.volume_raw || item.volume}</td>
       <td style="padding:8px 6px;text-align:center;color:var(--text-muted)">${item.sell_listings}</td>
+      <td style="padding:8px 6px;text-align:center">${historyHtml}</td>
       <td style="padding:8px 6px;text-align:center">${statusHtml}</td>
       <td style="padding:8px 6px;white-space:nowrap">
         <div style="display:flex;gap:5px">
           <a href="${escHtml(item.steam_url)}" target="_blank" class="btn btn-ghost" style="padding:4px 8px;font-size:11px">🔗</a>
-          <button class="btn ${item.is_profitable ? 'btn-green' : 'btn-ghost'}" style="padding:4px 8px;font-size:11px;white-space:nowrap"
+          <button class="btn ${item.worth_tracking ? 'btn-green' : 'btn-ghost'}" style="padding:4px 8px;font-size:11px;white-space:nowrap"
             onclick="addToWatchlist(${idx})">+ Слежка</button>
         </div>
       </td>

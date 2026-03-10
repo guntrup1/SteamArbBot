@@ -424,6 +424,9 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+const _errorLog = [];
+const MAX_ERROR_LOG = 50;
+
 function showToast(msg, type = 'info') {
   const container = document.getElementById('toast-container');
   if (!container) return;
@@ -433,8 +436,75 @@ function showToast(msg, type = 'info') {
   span.style.flex = '1';
   span.textContent = msg;
   toast.appendChild(span);
+  if (type === 'error' || type === 'warning') {
+    const closeBtn = document.createElement('span');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = 'cursor:pointer;margin-left:8px;opacity:0.7;font-size:14px';
+    closeBtn.onclick = () => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 200); };
+    toast.appendChild(closeBtn);
+  }
   container.appendChild(toast);
-  setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity .3s'; setTimeout(() => toast.remove(), 300); }, 4000);
+
+  if (type === 'error' || type === 'warning') {
+    _errorLog.unshift({ time: new Date().toLocaleTimeString('ru-RU'), msg, type });
+    if (_errorLog.length > MAX_ERROR_LOG) _errorLog.pop();
+    updateErrorPanel();
+    setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity .3s'; setTimeout(() => toast.remove(), 300); }, 15000);
+  } else {
+    setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity .3s'; setTimeout(() => toast.remove(), 300); }, 4000);
+  }
+}
+
+function updateErrorPanel() {
+  let panel = document.getElementById('error-log-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'error-log-panel';
+    panel.style.cssText = 'position:fixed;bottom:24px;left:24px;width:380px;max-height:300px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;z-index:9998;font-size:12px;display:flex;flex-direction:column;box-shadow:0 4px 20px rgba(0,0,0,0.4)';
+    panel.innerHTML = `
+      <div id="error-log-header" style="padding:8px 12px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);cursor:pointer;user-select:none" onclick="toggleErrorPanel()">
+        <span style="font-weight:600;color:var(--red)">⚠ Логи ошибок (<span id="error-log-count">0</span>)</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span id="error-log-toggle" style="font-size:14px;color:var(--text-muted)">▼</span>
+          <span style="font-size:14px;color:var(--text-muted);cursor:pointer" onclick="event.stopPropagation();clearErrorLog()">🗑</span>
+        </div>
+      </div>
+      <div id="error-log-body" style="overflow-y:auto;max-height:250px;padding:4px 0"></div>
+    `;
+    document.body.appendChild(panel);
+  }
+  const countEl = document.getElementById('error-log-count');
+  if (countEl) countEl.textContent = _errorLog.length;
+  const body = document.getElementById('error-log-body');
+  if (body) {
+    body.innerHTML = _errorLog.map(e => {
+      const color = e.type === 'error' ? 'var(--red)' : 'var(--yellow)';
+      return `<div style="padding:4px 12px;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;gap:8px;align-items:flex-start">
+        <span style="color:var(--text-muted);white-space:nowrap;min-width:55px">${e.time}</span>
+        <span style="color:${color};word-break:break-word">${escapeHtml(e.msg)}</span>
+      </div>`;
+    }).join('');
+  }
+  panel.style.display = _errorLog.length > 0 ? 'flex' : 'none';
+}
+
+function toggleErrorPanel() {
+  const body = document.getElementById('error-log-body');
+  const toggle = document.getElementById('error-log-toggle');
+  if (body) {
+    const hidden = body.style.display === 'none';
+    body.style.display = hidden ? 'block' : 'none';
+    if (toggle) toggle.textContent = hidden ? '▼' : '▲';
+  }
+}
+
+function clearErrorLog() {
+  _errorLog.length = 0;
+  updateErrorPanel();
+}
+
+function escapeHtml(str) {
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ─── Init ──────────────────────────────────────────────────────────────

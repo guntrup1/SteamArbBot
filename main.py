@@ -312,13 +312,20 @@ async def scanner_scan(request: Request):
             max_results=max_results
         )
         profitable = [r for r in results if r.get("is_profitable")]
+        worth_tracking = [r for r in results if r.get("worth_tracking")]
+        with_history = [r for r in results if r.get("had_recent_discounts")]
         msg = ""
         if not results:
             msg = "Предметы не найдены. Попробуйте другой запрос или подождите 1-2 мин (Steam может ограничивать запросы)."
-        elif len(profitable) == 0:
-            msg = f"Найдено {len(results)} предметов, но ни один не имеет скидку ≥ {threshold_pct}% с прибылью после комиссии."
+        elif len(profitable) == 0 and len(with_history) == 0:
+            msg = f"Найдено {len(results)} предметов, но ни один не имеет скидку ≥ {threshold_pct}% и нет недавних продаж со скидкой."
+        elif len(profitable) == 0 and len(with_history) > 0:
+            msg = f"Сейчас прибыльных нет, но {len(with_history)} предметов имели продажи со скидкой за последние 2 недели — стоит следить."
         return JSONResponse({"success": True, "results": results, "count": len(results),
-                             "profitable_count": len(profitable), "message": msg})
+                             "profitable_count": len(profitable),
+                             "worth_tracking_count": len(worth_tracking),
+                             "history_discount_count": len(with_history),
+                             "message": msg})
     except Exception as e:
         return JSONResponse({"success": False, "results": [], "count": 0,
                              "message": f"Ошибка сканирования: {str(e)}"})

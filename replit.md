@@ -13,7 +13,9 @@ The bot monitors selected Steam Market items every 10–300 seconds, buys when t
 - **Real-time WebSocket logs** — live trading log stream to the dashboard
 - **Telegram notifications** — buy/sell/error alerts in both TEST and LIVE modes
 - **PostgreSQL persistence** — items, trades, logs, settings, balance history
-- **Market Scanner** — weapon type presets, paginated search (3 pages × 50), rate-limit protection (semaphore + 1.5–3s delay + 429 retry), price cache 300s
+- **Market Scanner** — weapon type presets, paginated search (3 pages × 50), 14-day price history from listing pages, rate-limit protection
+- **Price History Analysis** — parses `var line1` from Steam listing pages (public, no auth needed), computes own median from 14-day data, identifies items with recent discount sales
+- **Persistent Error Log** — errors/warnings stay visible for 15 seconds with close button + collapsible error log panel (bottom-left) with full history
 - **API Logs** — all Steam API requests/responses logged to PostgreSQL
 - **Settings with tabs** — Предметы, Стратегия, Режим, Steam, Telegram — each with status indicators and guides
 
@@ -33,27 +35,29 @@ steam_bot/
   __init__.py
   config.py              # Constants: commission (15%), thresholds, URLs, currencies
   database.py            # PostgreSQL helpers: settings, items, trades, logs, api_logs
-  market.py              # Steam Market API: _steam_get (semaphore+retry), scan_market, search, price
+  market.py              # Steam Market API: _steam_get, scan_market with history, price analysis
   trading.py             # Bot loop, buy/sell logic, WS broadcast, mode mgmt
-  telegram_bot.py        # Telegram formatters + async sender (started/stopped/buy/sell/balance/error)
+  telegram_bot.py        # Telegram formatters + async sender
 templates/
   dashboard.html         # Dashboard: stats, items, logs, trades
-  scanner.html           # Scanner: weapon presets, scan params, results table, API logs
+  scanner.html           # Scanner: weapon presets, scan params, results with history, API logs
   settings.html          # Settings: 5 tabs (Items, Strategy, Mode, Steam, Telegram)
 static/
   style.css              # Dark theme CSS
-  app.js                 # WebSocket client, bot control, item search, settings
+  app.js                 # WebSocket client, bot control, item search, settings, error log panel
 ```
 
 ## Key Business Logic
 
-- **Buy threshold**: minimum 17% discount from median price
+- **Buy threshold**: minimum 17% discount from median price AND positive net profit after 15% commission
 - **Profit formula**: `profit = (sell_price × 0.85) - buy_price` (Steam takes 15%)
 - **sell_price in Steam search API**: always USD cents regardless of currency param
 - **Price cache**: 300 seconds per item (avoids rate limits)
-- **Scanner**: does NOT use pricehistory API (requires auth cookies), uses priceoverview only
+- **Price history**: fetched from listing page HTML (`var line1=`), 14-day window, own median computed (avoids currency mismatch with priceoverview)
+- **Scanner result fields**: `is_profitable` (current discount ≥ threshold + net profit > 0), `had_recent_discounts` (14-day history has sales ≥ threshold below median), `worth_tracking` (either profitable or recent discount history)
 - **Rate limiting**: global asyncio.Semaphore(1), random 1.5–3s delay between requests, 429 retry with 35–50s wait
-- **Bot start validation**: checks items exist, LIVE mode requires API key + login + password, warns about missing Steam Guard
+- **History cache**: 600 seconds per listing page
+- **Error log panel**: errors/warnings stored in JS array (max 50), shown in collapsible panel bottom-left, toasts stay 15s for errors (4s for info/success)
 
 ## Settings (stored in PostgreSQL)
 
