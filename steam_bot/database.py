@@ -1,7 +1,7 @@
 import os
 import psycopg2
 import psycopg2.extras
-from datetime import datetime
+from datetime import datetime, date
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
@@ -9,6 +9,19 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 def get_connection():
     conn = psycopg2.connect(DATABASE_URL)
     return conn
+
+
+def _serialize(row: dict) -> dict:
+    """Convert datetime/date objects to ISO strings so templates can slice them."""
+    result = {}
+    for k, v in row.items():
+        if isinstance(v, datetime):
+            result[k] = v.isoformat()
+        elif isinstance(v, date):
+            result[k] = v.isoformat()
+        else:
+            result[k] = v
+    return result
 
 
 def init_db():
@@ -151,7 +164,7 @@ def get_items():
     c.execute("SELECT * FROM items WHERE enabled = 1 ORDER BY name")
     rows = c.fetchall()
     conn.close()
-    return [dict(row) for row in rows]
+    return [_serialize(dict(row)) for row in rows]
 
 
 def add_item(name, market_hash_name, app_id=730, steam_url=None, image_url=None):
@@ -199,7 +212,7 @@ def get_logs(limit=100):
     c.execute("SELECT * FROM (SELECT * FROM logs ORDER BY id DESC LIMIT %s) sub ORDER BY id ASC", (limit,))
     rows = c.fetchall()
     conn.close()
-    return [dict(row) for row in rows]
+    return [_serialize(dict(row)) for row in rows]
 
 
 def add_trade(item_name, market_hash_name, trade_type, buy_price=None, sell_price=None,
@@ -229,7 +242,7 @@ def get_trades(limit=50, test_mode=None):
                   (1 if test_mode else 0, limit))
     rows = c.fetchall()
     conn.close()
-    return [dict(row) for row in rows]
+    return [_serialize(dict(row)) for row in rows]
 
 
 def get_statistics(test_mode=None):
@@ -290,4 +303,4 @@ def get_api_logs(limit=200):
     c.execute("SELECT * FROM (SELECT * FROM api_logs ORDER BY id DESC LIMIT %s) sub ORDER BY id ASC", (limit,))
     rows = c.fetchall()
     conn.close()
-    return [dict(row) for row in rows]
+    return [_serialize(dict(row)) for row in rows]

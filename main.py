@@ -294,9 +294,6 @@ async def scanner_scan(request: Request):
 @app.get("/api/logs/api")
 async def get_api_logs_endpoint(limit: int = 200):
     logs = db.get_api_logs(limit)
-    for log_entry in logs:
-        if log_entry.get("created_at"):
-            log_entry["created_at"] = str(log_entry["created_at"])
     return JSONResponse({"success": True, "logs": logs})
 
 
