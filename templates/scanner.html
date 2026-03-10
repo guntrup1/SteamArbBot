@@ -15,14 +15,17 @@
 .preset-btn:hover { border-color:var(--blue); color:var(--blue); }
 .preset-btn.active { background:var(--blue); color:#0d1117; border-color:var(--blue); font-weight:600; }
 
-.score-bar { display:flex; gap:3px; align-items:center; }
-.score-dot { width:8px; height:8px; border-radius:50%; background:var(--border); }
-.score-dot.fill-green { background:var(--green); }
-.score-dot.fill-yellow { background:var(--yellow); }
-
 .result-row td { vertical-align:middle; border-bottom:1px solid var(--border); }
 .result-row:hover { background:rgba(255,255,255,0.02); }
-.result-row.profitable { background:rgba(63,185,80,0.04); }
+.result-row.ideal { background:rgba(63,185,80,0.04); }
+.result-row.manipulated { background:rgba(248,81,73,0.04); }
+.badge { padding:3px 8px; border-radius:10px; font-size:11px; font-weight:600; white-space:nowrap; display:inline-block; }
+.badge-green { background:rgba(63,185,80,0.15); color:var(--green); }
+.badge-yellow { background:rgba(210,153,34,0.15); color:var(--yellow); }
+.badge-purple { background:rgba(130,80,223,0.15); color:#b87aff; }
+.badge-red { background:rgba(248,81,73,0.15); color:var(--red); }
+.badge-blue { background:rgba(56,139,253,0.15); color:var(--blue); }
+.badge-muted { background:rgba(139,148,158,0.1); color:var(--text-muted); }
 </style>
 </head>
 <body>
@@ -42,122 +45,105 @@
 <div class="container">
 
   <div class="mb-16">
-    <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">🔍 Сканер рынка Steam</h2>
-    <p class="text-muted" style="font-size:13px">Находит предметы с наибольшей скидкой от медианной цены. Пагинация по 250 предметам — больше шансов найти выгодные позиции.</p>
+    <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">🔍 Сканер рынка Steam — TF2 / Dota 2</h2>
+    <p class="text-muted" style="font-size:13px">Находит ликвидные предметы с хорошим спредом между ордерами на покупку и рыночной ценой. Проверяет историю продаж и детектирует манипуляции.</p>
   </div>
 
-  <!-- ── WEAPON TYPE PRESETS ── -->
   <div class="card mb-16">
     <div class="card-header">🎮 Быстрый выбор типа предмета</div>
     <div class="card-body" style="padding-bottom:8px">
 
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600">CS2 — Ножи</div>
-      <div class="preset-grid" id="presets-knives">
-        <button class="preset-btn" onclick="setPreset('★', 730)">★ Все ножи</button>
-        <button class="preset-btn" onclick="setPreset('★ Karambit', 730)">Karambit</button>
-        <button class="preset-btn" onclick="setPreset('★ Butterfly Knife', 730)">Butterfly</button>
-        <button class="preset-btn" onclick="setPreset('★ M9 Bayonet', 730)">M9 Bayonet</button>
-        <button class="preset-btn" onclick="setPreset('★ Bayonet', 730)">Bayonet</button>
-        <button class="preset-btn" onclick="setPreset('★ Flip Knife', 730)">Flip Knife</button>
-        <button class="preset-btn" onclick="setPreset('★ Gut Knife', 730)">Gut Knife</button>
-        <button class="preset-btn" onclick="setPreset('★ Huntsman Knife', 730)">Huntsman</button>
-        <button class="preset-btn" onclick="setPreset('★ Falchion Knife', 730)">Falchion</button>
-        <button class="preset-btn" onclick="setPreset('★ Bowie Knife', 730)">Bowie</button>
-        <button class="preset-btn" onclick="setPreset('★ Shadow Daggers', 730)">Shadow Daggers</button>
-        <button class="preset-btn" onclick="setPreset('★ Navaja Knife', 730)">Navaja</button>
-        <button class="preset-btn" onclick="setPreset('★ Stiletto Knife', 730)">Stiletto</button>
-        <button class="preset-btn" onclick="setPreset('★ Ursus Knife', 730)">Ursus</button>
-        <button class="preset-btn" onclick="setPreset('★ Skeleton Knife', 730)">Skeleton</button>
-        <button class="preset-btn" onclick="setPreset('★ Survival Knife', 730)">Survival</button>
-      </div>
-
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600;margin-top:10px">CS2 — Пистолеты</div>
-      <div class="preset-grid" id="presets-pistols">
-        <button class="preset-btn" onclick="setPreset('Desert Eagle', 730)">Desert Eagle</button>
-        <button class="preset-btn" onclick="setPreset('Glock-18', 730)">Glock-18</button>
-        <button class="preset-btn" onclick="setPreset('USP-S', 730)">USP-S</button>
-        <button class="preset-btn" onclick="setPreset('P250', 730)">P250</button>
-        <button class="preset-btn" onclick="setPreset('Five-SeveN', 730)">Five-SeveN</button>
-        <button class="preset-btn" onclick="setPreset('Tec-9', 730)">Tec-9</button>
-        <button class="preset-btn" onclick="setPreset('CZ75-Auto', 730)">CZ75-Auto</button>
-      </div>
-
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600;margin-top:10px">CS2 — Винтовки</div>
-      <div class="preset-grid" id="presets-rifles">
-        <button class="preset-btn" onclick="setPreset('AK-47', 730)">AK-47</button>
-        <button class="preset-btn" onclick="setPreset('AWP', 730)">AWP</button>
-        <button class="preset-btn" onclick="setPreset('M4A4', 730)">M4A4</button>
-        <button class="preset-btn" onclick="setPreset('M4A1-S', 730)">M4A1-S</button>
-        <button class="preset-btn" onclick="setPreset('SG 553', 730)">SG 553</button>
-        <button class="preset-btn" onclick="setPreset('AUG', 730)">AUG</button>
-        <button class="preset-btn" onclick="setPreset('FAMAS', 730)">FAMAS</button>
-        <button class="preset-btn" onclick="setPreset('Galil AR', 730)">Galil AR</button>
-        <button class="preset-btn" onclick="setPreset('SSG 08', 730)">SSG 08</button>
-        <button class="preset-btn" onclick="setPreset('SCAR-20', 730)">SCAR-20</button>
-        <button class="preset-btn" onclick="setPreset('G3SG1', 730)">G3SG1</button>
-      </div>
-
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600;margin-top:10px">CS2 — Автоматы и дробовики</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600">TF2 — Ключи и расходники</div>
       <div class="preset-grid">
-        <button class="preset-btn" onclick="setPreset('MP9', 730)">MP9</button>
-        <button class="preset-btn" onclick="setPreset('MP7', 730)">MP7</button>
-        <button class="preset-btn" onclick="setPreset('P90', 730)">P90</button>
-        <button class="preset-btn" onclick="setPreset('UMP-45', 730)">UMP-45</button>
-        <button class="preset-btn" onclick="setPreset('MAC-10', 730)">MAC-10</button>
-        <button class="preset-btn" onclick="setPreset('Nova', 730)">Nova</button>
-        <button class="preset-btn" onclick="setPreset('MAG-7', 730)">MAG-7</button>
-        <button class="preset-btn" onclick="setPreset('XM1014', 730)">XM1014</button>
-        <button class="preset-btn" onclick="setPreset('Negev', 730)">Negev</button>
-        <button class="preset-btn" onclick="setPreset('M249', 730)">M249</button>
+        <button class="preset-btn" onclick="setPreset('Key', 440)">Ключи</button>
+        <button class="preset-btn" onclick="setPreset('Tour of Duty Ticket', 440)">Tour of Duty</button>
+        <button class="preset-btn" onclick="setPreset('Refined Metal', 440)">Refined Metal</button>
+        <button class="preset-btn" onclick="setPreset('Reclaimed Metal', 440)">Reclaimed Metal</button>
+        <button class="preset-btn" onclick="setPreset('Name Tag', 440)">Name Tag</button>
+        <button class="preset-btn" onclick="setPreset('Description Tag', 440)">Description Tag</button>
+        <button class="preset-btn" onclick="setPreset('Backpack Expander', 440)">Backpack Expander</button>
       </div>
 
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600;margin-top:10px">CS2 — Перчатки и другое</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600;margin-top:10px">TF2 — Шапки и косметика</div>
       <div class="preset-grid">
-        <button class="preset-btn" onclick="setPreset('★ Sport Gloves', 730)">Sport Gloves</button>
-        <button class="preset-btn" onclick="setPreset('★ Driver Gloves', 730)">Driver Gloves</button>
-        <button class="preset-btn" onclick="setPreset('★ Moto Gloves', 730)">Moto Gloves</button>
-        <button class="preset-btn" onclick="setPreset('★ Hand Wraps', 730)">Hand Wraps</button>
-        <button class="preset-btn" onclick="setPreset('★ Specialist Gloves', 730)">Specialist Gloves</button>
-        <button class="preset-btn" onclick="setPreset('Sticker', 730)">Стикеры</button>
+        <button class="preset-btn" onclick="setPreset('Unusual', 440)">Unusual (все)</button>
+        <button class="preset-btn" onclick="setPreset('Strange', 440)">Strange (все)</button>
+        <button class="preset-btn" onclick="setPreset('Vintage', 440)">Vintage</button>
+        <button class="preset-btn" onclick="setPreset('Genuine', 440)">Genuine</button>
+        <button class="preset-btn" onclick="setPreset('Haunted', 440)">Haunted</button>
+        <button class="preset-btn" onclick="setPreset('Collector', 440)">Collector's</button>
       </div>
 
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600;margin-top:10px">Другие игры</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600;margin-top:10px">TF2 — Оружие</div>
       <div class="preset-grid">
-        <button class="preset-btn" onclick="setPreset('Arcana', 570, true)">Dota 2 Arcana</button>
-        <button class="preset-btn" onclick="setPreset('Immortal', 570, true)">Dota 2 Immortal</button>
-        <button class="preset-btn" onclick="setPreset('', 570, true)">Dota 2 популярные</button>
+        <button class="preset-btn" onclick="setPreset('Killstreak', 440)">Killstreak</button>
+        <button class="preset-btn" onclick="setPreset('Australium', 440)">Australium</button>
+        <button class="preset-btn" onclick="setPreset('Festive', 440)">Festive</button>
+        <button class="preset-btn" onclick="setPreset('Botkiller', 440)">Botkiller</button>
+        <button class="preset-btn" onclick="setPreset('Strangifier', 440)">Strangifier</button>
+        <button class="preset-btn" onclick="setPreset('Kit', 440)">Kit</button>
+      </div>
+
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600;margin-top:10px">TF2 — Ящики и краски</div>
+      <div class="preset-grid">
+        <button class="preset-btn" onclick="setPreset('Crate', 440)">Ящики (Crate)</button>
+        <button class="preset-btn" onclick="setPreset('Case', 440)">Кейсы (Case)</button>
+        <button class="preset-btn" onclick="setPreset('Paint', 440)">Краски</button>
+        <button class="preset-btn" onclick="setPreset('Taunt', 440)">Насмешки</button>
+        <button class="preset-btn" onclick="setPreset('', 440)">TF2 популярные</button>
+      </div>
+
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600;margin-top:14px">Dota 2 — Предметы</div>
+      <div class="preset-grid">
+        <button class="preset-btn" onclick="setPreset('Arcana', 570)">Arcana</button>
+        <button class="preset-btn" onclick="setPreset('Immortal', 570)">Immortal</button>
+        <button class="preset-btn" onclick="setPreset('Mythical', 570)">Mythical</button>
+        <button class="preset-btn" onclick="setPreset('Legendary', 570)">Legendary</button>
+        <button class="preset-btn" onclick="setPreset('Genuine', 570)">Genuine</button>
+        <button class="preset-btn" onclick="setPreset('Inscribed', 570)">Inscribed</button>
+        <button class="preset-btn" onclick="setPreset('Exalted', 570)">Exalted</button>
+      </div>
+
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600;margin-top:10px">Dota 2 — Категории</div>
+      <div class="preset-grid">
+        <button class="preset-btn" onclick="setPreset('Courier', 570)">Курьеры</button>
+        <button class="preset-btn" onclick="setPreset('Ward', 570)">Варды</button>
+        <button class="preset-btn" onclick="setPreset('Set', 570)">Сеты</button>
+        <button class="preset-btn" onclick="setPreset('Treasure', 570)">Сокровищницы</button>
+        <button class="preset-btn" onclick="setPreset('', 570)">Dota 2 популярные</button>
       </div>
     </div>
   </div>
 
-  <!-- ── SCAN PARAMS ── -->
   <div class="card mb-16">
     <div class="card-header">⚙️ Параметры сканирования</div>
     <div class="card-body">
       <div class="grid-2" style="gap:12px;margin-bottom:12px">
         <div>
           <label class="form-label">Поисковый запрос <span style="color:var(--text-muted);font-size:11px">(или выберите тип выше)</span></label>
-          <input type="text" id="scan-query" class="form-control" placeholder="AK-47, AWP, ★ Karambit...">
+          <input type="text" id="scan-query" class="form-control" placeholder="Key, Unusual, Arcana...">
         </div>
         <div>
           <label class="form-label">Игра</label>
           <select id="scan-appid" class="form-control">
-            <option value="730">Counter-Strike 2</option>
+            <option value="440" selected>Team Fortress 2</option>
             <option value="570">Dota 2</option>
-            <option value="440">Team Fortress 2</option>
-            <option value="252490">Rust</option>
           </select>
         </div>
         <div>
-          <label class="form-label">Мин. цена (USD) <span style="color:var(--text-muted);font-size:11px">— отсекает слишком дешёвые</span></label>
-          <input type="number" id="scan-min-price" class="form-control" min="0.01" step="0.5" value="1.0">
+          <label class="form-label">Мин. цена (USD)</label>
+          <input type="number" id="scan-min-price" class="form-control" min="0.01" step="0.1" value="0.20">
         </div>
         <div>
-          <label class="form-label">Порог скидки (%) <span style="color:var(--text-muted);font-size:11px">— стратегия покупки</span></label>
+          <label class="form-label">Мин. спред ордер/рынок (%)</label>
           <input type="number" id="scan-threshold" class="form-control" min="5" max="80" step="1" value="17">
         </div>
         <div>
-          <label class="form-label">Макс. результатов (после фильтра)</label>
+          <label class="form-label">Мин. продаж/неделю</label>
+          <input type="number" id="scan-min-sales" class="form-control" min="10" step="50" value="600">
+        </div>
+        <div>
+          <label class="form-label">Макс. результатов</label>
           <select id="scan-max" class="form-control">
             <option value="20">20 предметов</option>
             <option value="30" selected>30 предметов</option>
@@ -165,11 +151,11 @@
             <option value="60">60 предметов (макс)</option>
           </select>
         </div>
-        <div style="display:flex;align-items:flex-end">
-          <button class="btn btn-blue" id="scan-btn" onclick="startScan()" style="width:100%;font-size:14px">
-            🔍 Сканировать
-          </button>
-        </div>
+      </div>
+      <div style="margin-bottom:12px">
+        <button class="btn btn-blue" id="scan-btn" onclick="startScan()" style="width:100%;font-size:14px">
+          🔍 Сканировать
+        </button>
       </div>
 
       <div id="scan-progress" style="display:none">
@@ -189,7 +175,6 @@
     </div>
   </div>
 
-  <!-- ── RESULTS ── -->
   <div id="results-section" style="display:none" class="mb-16">
     <div class="card">
       <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
@@ -199,10 +184,13 @@
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:5px;cursor:pointer">
-            <input type="checkbox" id="only-profitable" onchange="filterResults()"> Только прибыльные (≥ порога)
+            <input type="checkbox" id="only-ideal" onchange="filterResults()"> Только идеальные
           </label>
           <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:5px;cursor:pointer">
-            <input type="checkbox" id="only-worth-tracking" onchange="filterResults()"> Стоит отслеживать
+            <input type="checkbox" id="only-liquid" onchange="filterResults()"> Только ликвидные
+          </label>
+          <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:5px;cursor:pointer">
+            <input type="checkbox" id="hide-manipulated" onchange="filterResults()"> Скрыть манипуляции
           </label>
           <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px" onclick="startScan()">↻ Обновить</button>
         </div>
@@ -213,13 +201,13 @@
             <tr style="background:var(--bg-card2)">
               <th style="padding:10px 8px;text-align:left;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)"></th>
               <th style="padding:10px 8px;text-align:left;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">ПРЕДМЕТ</th>
-              <th style="padding:10px 8px;text-align:left;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">МИН. ЦЕНА</th>
-              <th style="padding:10px 8px;text-align:left;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">МЕДИАНА</th>
-              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">СКИДКА</th>
+              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">ОРДЕР (buy)</th>
+              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">РЫНОК (sell)</th>
+              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">СПРЕД</th>
               <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">ПРИБЫЛЬ</th>
-              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">ОБЪЁМ</th>
-              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">ЛОТОВ</th>
-              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">ИСТОРИЯ (14д)</th>
+              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">ПРОДАЖ/НЕД</th>
+              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">УРОВНИ</th>
+              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">АНОМАЛИИ</th>
               <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">СТАТУС</th>
               <th style="padding:10px 8px;border-bottom:2px solid var(--border)"></th>
             </tr>
@@ -235,7 +223,6 @@
     </div>
   </div>
 
-  <!-- ── API LOGS ── -->
   <div class="card">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
       <span>📋 API Логи запросов к Steam</span>
@@ -272,8 +259,6 @@
 let _allResults = [];
 let _scanStart = 0;
 let _elapsedTimer = null;
-
-const WEAPON_PRESETS = {};
 
 const _errorLog = [];
 const MAX_ERROR_LOG = 50;
@@ -353,13 +338,9 @@ function clearErrorLog() {
   updateErrorPanel();
 }
 
-function setPreset(query, appId, changeGame = false) {
+function setPreset(query, appId) {
   document.getElementById('scan-query').value = query;
-  if (changeGame) {
-    document.getElementById('scan-appid').value = appId;
-  } else {
-    document.getElementById('scan-appid').value = 730;
-  }
+  document.getElementById('scan-appid').value = appId;
   document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
   event.target.classList.add('active');
 }
@@ -373,8 +354,9 @@ async function startScan() {
 
   const query = document.getElementById('scan-query').value.trim();
   const appId = parseInt(document.getElementById('scan-appid').value);
-  const minPrice = parseFloat(document.getElementById('scan-min-price').value) || 1.0;
+  const minPrice = parseFloat(document.getElementById('scan-min-price').value) || 0.20;
   const threshold = parseFloat(document.getElementById('scan-threshold').value) || 17.0;
+  const minSales = parseInt(document.getElementById('scan-min-sales').value) || 600;
   const maxResults = parseInt(document.getElementById('scan-max').value) || 30;
 
   btn.disabled = true;
@@ -389,8 +371,9 @@ async function startScan() {
     elapsed.textContent = `${sec}с`;
     const phases = [
       [0,   '🔍 Поиск предметов на Steam Market...'],
-      [8,   '📋 Фильтрация по цене...'],
-      [15,  '💰 Получение цен (пауза 1.5–3с между запросами)...'],
+      [5,   '📋 Загрузка страниц листинга и истории...'],
+      [15,  '📊 Получение ордеров на покупку...'],
+      [40,  '🔎 Анализ спреда и аномалий...'],
       [70,  '✅ Сортировка результатов...'],
     ];
     const phase = [...phases].reverse().find(([s]) => sec >= s);
@@ -404,7 +387,7 @@ async function startScan() {
     const res = await fetch('/api/scanner/scan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, app_id: appId, min_price_usd: minPrice, threshold_pct: threshold, max_results: maxResults })
+      body: JSON.stringify({ query, app_id: appId, min_price_usd: minPrice, threshold_pct: threshold, max_results: maxResults, min_weekly_sales: minSales })
     });
     const data = await res.json();
 
@@ -417,10 +400,10 @@ async function startScan() {
       _allResults = data.results || [];
       renderResults(_allResults);
       if (data.message) {
-        showToast(data.message, data.profitable_count > 0 ? 'info' : 'warning');
+        showToast(data.message, data.ideal_count > 0 ? 'success' : 'warning');
       }
-      if (data.profitable_count > 0) {
-        showToast(`Найдено ${data.profitable_count} подходящих предметов для слежки!`, 'success');
+      if (data.ideal_count > 0) {
+        showToast(`Найдено ${data.ideal_count} идеальных предметов для ордеров!`, 'success');
       }
     } else {
       showToast(data.message || 'Ошибка сканирования', 'error');
@@ -439,15 +422,13 @@ async function startScan() {
 }
 
 function filterResults() {
-  const onlyProfitable = document.getElementById('only-profitable').checked;
-  const onlyWorthTracking = document.getElementById('only-worth-tracking').checked;
+  const onlyIdeal = document.getElementById('only-ideal').checked;
+  const onlyLiquid = document.getElementById('only-liquid').checked;
+  const hideManipulated = document.getElementById('hide-manipulated').checked;
   let filtered = _allResults;
-  if (onlyProfitable) {
-    filtered = filtered.filter(r => r.is_profitable);
-  }
-  if (onlyWorthTracking) {
-    filtered = filtered.filter(r => r.worth_tracking);
-  }
+  if (onlyIdeal) filtered = filtered.filter(r => r.is_ideal);
+  if (onlyLiquid) filtered = filtered.filter(r => r.is_liquid);
+  if (hideManipulated) filtered = filtered.filter(r => !r.is_manipulated);
   renderResults(filtered);
 }
 
@@ -458,11 +439,11 @@ function renderResults(results) {
   const summary = document.getElementById('results-summary');
   section.style.display = 'block';
 
-  const profitable = results.filter(r => r.is_profitable).length;
-  const withDiscount = results.filter(r => r.has_discount).length;
-  const withHistory = results.filter(r => r.had_recent_discounts).length;
-  const worthTracking = results.filter(r => r.worth_tracking).length;
-  summary.textContent = `${results.length} предметов · ${profitable} прибыльных · ${withHistory} с историей скидок · ${worthTracking} стоит отслеживать`;
+  const ideal = results.filter(r => r.is_ideal).length;
+  const liquid = results.filter(r => r.is_liquid).length;
+  const goodSpread = results.filter(r => r.has_good_spread).length;
+  const manipulated = results.filter(r => r.is_manipulated).length;
+  summary.textContent = `${results.length} предметов · ${ideal} идеальных · ${liquid} ликвидных · ${goodSpread} с хорошим спредом · ${manipulated} с манипуляциями`;
 
   if (results.length === 0) {
     tbody.innerHTML = '';
@@ -473,70 +454,86 @@ function renderResults(results) {
 
   tbody.innerHTML = results.map((item) => {
     const idx = _allResults.indexOf(item);
-    const discountColor = item.is_profitable ? 'var(--green)' : item.has_discount ? 'var(--yellow)' : item.discount_pct > 0 ? 'var(--text)' : 'var(--text-muted)';
-    const discountBg = item.is_profitable ? 'rgba(63,185,80,0.15)' : item.has_discount ? 'rgba(210,153,34,0.15)' : 'transparent';
-    const profitColor = item.net_profit_pct > 0 ? 'var(--green)' : item.net_profit_pct > -5 ? 'var(--yellow)' : 'var(--text-muted)';
+    const spreadColor = item.has_good_spread ? 'var(--green)' : item.spread_pct > 10 ? 'var(--yellow)' : 'var(--text-muted)';
+    const spreadBg = item.has_good_spread ? 'rgba(63,185,80,0.15)' : item.spread_pct > 10 ? 'rgba(210,153,34,0.15)' : 'transparent';
+    const profitColor = item.profit_pct_if_ordered > 0 ? 'var(--green)' : 'var(--text-muted)';
 
     let statusHtml;
-    if (item.is_profitable) {
-      statusHtml = `<span style="background:rgba(63,185,80,0.15);color:var(--green);padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap">✅ Покупать</span>`;
-    } else if (item.had_recent_discounts && !item.has_discount) {
-      statusHtml = `<span style="background:rgba(130,80,223,0.15);color:#b87aff;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap">👁 Следить</span>`;
-    } else if (item.has_discount) {
-      statusHtml = `<span style="background:rgba(210,153,34,0.15);color:var(--yellow);padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap">⚠️ Скидка</span>`;
+    if (item.is_ideal) {
+      statusHtml = `<span class="badge badge-green">✅ Идеальный</span>`;
+    } else if (item.is_manipulated) {
+      statusHtml = `<span class="badge badge-red">⚠ Манипуляция</span>`;
+    } else if (item.is_liquid && item.has_good_spread) {
+      statusHtml = `<span class="badge badge-yellow">⚡ Хороший</span>`;
+    } else if (item.is_liquid) {
+      statusHtml = `<span class="badge badge-blue">💧 Ликвидный</span>`;
     } else {
-      statusHtml = `<span style="color:var(--text-muted);font-size:11px">—</span>`;
+      statusHtml = `<span class="badge badge-muted">—</span>`;
     }
 
-    let historyHtml = '';
-    const h = item.history;
-    if (h && h.has_history) {
-      if (h.had_recent_discounts) {
-        historyHtml = `<div style="font-size:11px;line-height:1.4">
-          <div style="color:#b87aff;font-weight:600">${h.discount_sales} продаж ≤-${h.max_discount_pct}%</div>
-          <div style="color:var(--text-muted)">из ${h.total_sales} за 14д</div>
-          <div style="color:var(--text-muted)">посл.: ${h.last_discount_date || '—'}</div>
-        </div>`;
-      } else {
-        historyHtml = `<span style="color:var(--text-muted);font-size:11px">${h.total_sales} продаж, без скидок</span>`;
-      }
+    let levelsHtml;
+    if (item.both_levels_traded) {
+      levelsHtml = `<div style="font-size:11px;line-height:1.4">
+        <div style="color:var(--green)">✅ buy: ${item.buy_level_sales}</div>
+        <div style="color:var(--green)">✅ sell: ${item.sell_level_sales}</div>
+      </div>`;
     } else {
-      historyHtml = `<span style="color:var(--text-muted);font-size:11px">—</span>`;
+      const buyOk = item.buy_level_sales > 0;
+      const sellOk = item.sell_level_sales > 0;
+      levelsHtml = `<div style="font-size:11px;line-height:1.4">
+        <div style="color:${buyOk ? 'var(--green)' : 'var(--red)'}">${buyOk ? '✅' : '❌'} buy: ${item.buy_level_sales}</div>
+        <div style="color:${sellOk ? 'var(--green)' : 'var(--red)'}">${sellOk ? '✅' : '❌'} sell: ${item.sell_level_sales}</div>
+      </div>`;
+    }
+
+    let anomalyHtml;
+    if (item.is_manipulated) {
+      anomalyHtml = `<div style="font-size:11px;line-height:1.4">
+        <div style="color:var(--red);font-weight:600">⚠ ${item.anomaly_score}/100</div>
+        <div style="color:var(--text-muted)">${(item.anomaly_reasons || []).slice(0, 2).join(', ')}</div>
+      </div>`;
+    } else if (item.anomaly_score > 0) {
+      anomalyHtml = `<span style="color:var(--yellow);font-size:11px">${item.anomaly_score}/100</span>`;
+    } else {
+      anomalyHtml = `<span style="color:var(--green);font-size:11px">✅ OK</span>`;
     }
 
     const imgHtml = item.icon_url
       ? `<img src="${item.icon_url}" style="width:36px;height:36px;object-fit:contain;border-radius:4px" onerror="this.style.display='none'">`
       : `<div style="width:36px;height:36px;background:var(--bg-card2);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:16px">🔷</div>`;
 
-    const rowClass = `result-row${item.is_profitable ? ' profitable' : item.had_recent_discounts ? ' history-discount' : ''}`;
-    const rankBadge = idx < 3 && item.is_profitable
+    const rowClass = `result-row${item.is_ideal ? ' ideal' : item.is_manipulated ? ' manipulated' : ''}`;
+    const rankBadge = idx < 3 && item.is_ideal
       ? `<span style="font-size:10px;background:var(--green);color:#0d1117;padding:1px 5px;border-radius:3px;margin-left:4px">TOP</span>`
       : '';
+
+    const salesColor = item.is_liquid ? 'var(--green)' : item.weekly_sales > 200 ? 'var(--yellow)' : 'var(--text-muted)';
 
     return `<tr class="${rowClass}">
       <td style="padding:8px">${imgHtml}</td>
       <td style="padding:8px 6px;max-width:220px">
         <div style="font-weight:600;font-size:12px;margin-bottom:2px">${escHtml(item.name)}${rankBadge}</div>
-        <div style="font-size:11px;color:var(--text-muted)">~$${item.sell_price_usd.toFixed(2)}</div>
+        <div style="font-size:11px;color:var(--text-muted)">Лотов: ${item.sell_listings}</div>
       </td>
-      <td style="padding:8px 6px;font-weight:700;white-space:nowrap">${escHtml(item.lowest_price_raw || item.lowest_price.toFixed(2))}</td>
-      <td style="padding:8px 6px;color:var(--text-muted);white-space:nowrap">${escHtml(item.median_price_raw || item.median_price.toFixed(2))}</td>
+      <td style="padding:8px 6px;text-align:center;font-weight:700;white-space:nowrap;color:var(--blue)">${item.highest_buy_order > 0 ? '$' + item.highest_buy_order.toFixed(2) : '—'}</td>
+      <td style="padding:8px 6px;text-align:center;font-weight:700;white-space:nowrap">${item.lowest_sell_order > 0 ? '$' + item.lowest_sell_order.toFixed(2) : '$' + item.sell_price_usd.toFixed(2)}</td>
       <td style="padding:8px 6px;text-align:center">
-        <span style="background:${discountBg};color:${discountColor};font-weight:700;padding:3px 8px;border-radius:12px;font-size:13px;white-space:nowrap">
-          ${item.discount_pct > 0 ? '' : ''}${item.discount_pct.toFixed(1)}%
+        <span style="background:${spreadBg};color:${spreadColor};font-weight:700;padding:3px 8px;border-radius:12px;font-size:13px;white-space:nowrap">
+          ${item.spread_pct > 0 ? '+' : ''}${item.spread_pct.toFixed(1)}%
         </span>
       </td>
       <td style="padding:8px 6px;text-align:center;color:${profitColor};font-weight:600;white-space:nowrap">
-        ${item.net_profit_pct >= 0 ? '+' : ''}${item.net_profit_pct.toFixed(1)}%
+        ${item.profit_pct_if_ordered > 0 ? '+' : ''}${item.profit_pct_if_ordered.toFixed(1)}%
+        ${item.profit_if_ordered > 0 ? '<div style="font-size:10px;color:var(--text-muted)">$' + item.profit_if_ordered.toFixed(2) + '</div>' : ''}
       </td>
-      <td style="padding:8px 6px;text-align:center;font-weight:600">${item.volume_raw || item.volume}</td>
-      <td style="padding:8px 6px;text-align:center;color:var(--text-muted)">${item.sell_listings}</td>
-      <td style="padding:8px 6px;text-align:center">${historyHtml}</td>
+      <td style="padding:8px 6px;text-align:center;font-weight:600;color:${salesColor}">${item.weekly_sales}</td>
+      <td style="padding:8px 6px;text-align:center">${levelsHtml}</td>
+      <td style="padding:8px 6px;text-align:center">${anomalyHtml}</td>
       <td style="padding:8px 6px;text-align:center">${statusHtml}</td>
       <td style="padding:8px 6px;white-space:nowrap">
         <div style="display:flex;gap:5px">
           <a href="${escHtml(item.steam_url)}" target="_blank" class="btn btn-ghost" style="padding:4px 8px;font-size:11px">🔗</a>
-          <button class="btn ${item.worth_tracking ? 'btn-green' : 'btn-ghost'}" style="padding:4px 8px;font-size:11px;white-space:nowrap"
+          <button class="btn ${item.is_ideal ? 'btn-green' : 'btn-ghost'}" style="padding:4px 8px;font-size:11px;white-space:nowrap"
             onclick="addToWatchlist(${idx})">+ Слежка</button>
         </div>
       </td>

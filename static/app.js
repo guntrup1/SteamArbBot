@@ -200,7 +200,7 @@ function setupItemSearch() {
 }
 
 async function doSearch(q) {
-  const appId = document.getElementById('app-id-select')?.value || 730;
+  const appId = document.getElementById('app-id-select')?.value || 440;
   const results = document.getElementById('search-results');
   results.innerHTML = '<div style="padding:12px;color:var(--text-muted)"><span class="spinner"></span> Поиск...</div>';
   results.style.display = 'block';
@@ -275,7 +275,7 @@ async function addItem() {
     name = manualInput?.value.trim();
     if (!name) { showToast('⚠️ Введите название предмета', 'warning'); return; }
     hash_name = name;
-    app_id = parseInt(document.getElementById('app-id-select')?.value || 730);
+    app_id = parseInt(document.getElementById('app-id-select')?.value || 440);
     steam_url = `https://steamcommunity.com/market/listings/${app_id}/${encodeURIComponent(name)}`;
     image_url = '';
   }

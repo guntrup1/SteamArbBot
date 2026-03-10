@@ -32,12 +32,13 @@ def init_db():
         CREATE TABLE IF NOT EXISTS items (
             id SERIAL PRIMARY KEY,
             name TEXT NOT NULL,
-            market_hash_name TEXT NOT NULL UNIQUE,
-            app_id INTEGER DEFAULT 730,
+            market_hash_name TEXT NOT NULL,
+            app_id INTEGER DEFAULT 440,
             enabled INTEGER DEFAULT 1,
             steam_url TEXT,
             image_url TEXT,
-            added_at TIMESTAMP DEFAULT NOW()
+            added_at TIMESTAMP DEFAULT NOW(),
+            UNIQUE(app_id, market_hash_name)
         )
     """)
 
@@ -167,7 +168,7 @@ def get_items():
     return [_serialize(dict(row)) for row in rows]
 
 
-def add_item(name, market_hash_name, app_id=730, steam_url=None, image_url=None):
+def add_item(name, market_hash_name, app_id=440, steam_url=None, image_url=None):
     conn = get_connection()
     c = conn.cursor()
     url = steam_url or f"https://steamcommunity.com/market/listings/{app_id}/{market_hash_name.replace(' ', '%20')}"
@@ -180,7 +181,7 @@ def add_item(name, market_hash_name, app_id=730, steam_url=None, image_url=None)
         return True, "Предмет добавлен"
     except psycopg2.IntegrityError:
         conn.rollback()
-        c.execute("UPDATE items SET enabled=1 WHERE market_hash_name=%s", (market_hash_name,))
+        c.execute("UPDATE items SET enabled=1 WHERE market_hash_name=%s AND app_id=%s", (market_hash_name, app_id))
         conn.commit()
         return True, "Предмет уже существует, активирован"
     finally:

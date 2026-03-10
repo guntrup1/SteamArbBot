@@ -132,7 +132,7 @@ async def process_item(item: dict, mode: str):
     """Обработка одного предмета: проверка цены и принятие решения о покупке"""
     item_name = item["name"]
     hash_name = item["market_hash_name"]
-    app_id = item.get("app_id", 730)
+    app_id = item.get("app_id", 440)
     steam_url = item.get("steam_url", "")
     currency_setting = db.get_setting("steam_currency", "5")
     currency = int(currency_setting)

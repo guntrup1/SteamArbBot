@@ -19,16 +19,16 @@ MAX_CHECK_INTERVAL = 60
 
 DEFAULT_MAX_BUYS_PER_HOUR = 10
 
-APP_ID_CS2 = 730
-APP_ID_DOTA2 = 570
+DEFAULT_MIN_PRICE_USD = 0.20
+
+MIN_WEEKLY_SALES = 600
+
 APP_ID_TF2 = 440
+APP_ID_DOTA2 = 570
 
 SUPPORTED_APPS = {
-    "730": "Counter-Strike 2",
-    "570": "Dota 2",
     "440": "Team Fortress 2",
-    "252490": "Rust",
-    "578080": "PUBG",
+    "570": "Dota 2",
 }
 
 STEAM_MARKET_BASE = "https://steamcommunity.com/market"
@@ -36,6 +36,7 @@ STEAM_PRICE_API = "https://steamcommunity.com/market/priceoverview/"
 STEAM_LISTINGS_API = "https://steamcommunity.com/market/listings/"
 STEAM_SEARCH_API = "https://steamcommunity.com/market/search/render/"
 STEAM_BUY_API = "https://steamcommunity.com/market/buylisting/"
+STEAM_ORDERS_HISTOGRAM_API = "https://steamcommunity.com/market/itemordershistogram"
 
 CURRENCY_INFO = {
     "1":  {"symbol": "$",  "code": "USD", "name": "Доллар США"},
@@ -59,4 +60,4 @@ LOG_LEVELS = {
     "trade": "💰",
 }
 
-VERSION = "1.0.0"
+VERSION = "2.0.0"

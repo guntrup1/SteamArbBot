@@ -10,6 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from steam_bot import database as db
 from steam_bot import market as mkt
 from steam_bot import trading
+from steam_bot import config as cfg
 from steam_bot.config import SESSION_SECRET, HOST, PORT, get_currency_symbol, CURRENCY_INFO
 
 db.init_db()
@@ -165,7 +166,9 @@ async def add_item(request: Request):
     data = await request.json()
     name = data.get("name", "").strip()
     hash_name = data.get("hash_name", name).strip()
-    app_id = int(data.get("app_id", 730))
+    app_id = int(data.get("app_id", 440))
+    if str(app_id) not in cfg.SUPPORTED_APPS:
+        return JSONResponse({"success": False, "message": f"Игра {app_id} не поддерживается. Доступны: TF2 (440), Dota 2 (570)"})
     steam_url = data.get("steam_url", "").strip()
     image_url = data.get("image_url", "").strip()
     if not name:
@@ -189,7 +192,7 @@ async def get_item_price(item_id: int):
     settings = db.get_all_settings()
     currency = int(settings.get("steam_currency", "5"))
     threshold = float(settings.get("buy_threshold", "17"))
-    data = await mkt.get_item_price(item["market_hash_name"], item.get("app_id", 730), currency)
+    data = await mkt.get_item_price(item["market_hash_name"], item.get("app_id", 440), currency)
     if data.get("success"):
         lowest = data["lowest_price"]
         median = data["median_price"]
@@ -211,7 +214,9 @@ async def get_item_price(item_id: int):
 
 
 @app.get("/api/items/search")
-async def search_items(q: str, app_id: int = 730):
+async def search_items(q: str, app_id: int = 440):
+    if str(app_id) not in cfg.SUPPORTED_APPS:
+        return JSONResponse({"success": False, "results": [], "message": f"Игра {app_id} не поддерживается"})
     results = await mkt.search_item(q, app_id)
     return JSONResponse({"success": True, "results": results})
 
@@ -299,32 +304,38 @@ async def scanner_page(request: Request):
 async def scanner_scan(request: Request):
     data = await request.json()
     query = data.get("query", "").strip()
-    app_id = int(data.get("app_id", 730))
-    min_price_usd = float(data.get("min_price_usd", 1.0))
-    threshold_pct = float(data.get("threshold_pct", 17.0))
-    max_results = min(int(data.get("max_results", 30)), 60)
+    app_id = int(data.get("app_id", 440))
+    if str(app_id) not in cfg.SUPPORTED_APPS:
+        return JSONResponse({"success": False, "results": [], "count": 0,
+                             "message": f"Игра {app_id} не поддерживается. Доступны: TF2 (440), Dota 2 (570)"})
+    min_price_usd = max(float(data.get("min_price_usd", 0.20)), cfg.DEFAULT_MIN_PRICE_USD)
+    threshold_pct = max(float(data.get("threshold_pct", 17.0)), 5.0)
+    max_results = min(max(int(data.get("max_results", 30)), 1), 60)
+    min_weekly_sales = max(int(data.get("min_weekly_sales", 600)), 10)
     settings = db.get_all_settings()
     currency = int(settings.get("steam_currency", "5"))
     try:
         results = await mkt.scan_market(
             query=query, app_id=app_id, currency=currency,
             min_price_usd=min_price_usd, threshold_pct=threshold_pct,
-            max_results=max_results
+            max_results=max_results, min_weekly_sales=min_weekly_sales
         )
-        profitable = [r for r in results if r.get("is_profitable")]
-        worth_tracking = [r for r in results if r.get("worth_tracking")]
-        with_history = [r for r in results if r.get("had_recent_discounts")]
+        ideal = [r for r in results if r.get("is_ideal")]
+        liquid = [r for r in results if r.get("is_liquid")]
+        good_spread = [r for r in results if r.get("has_good_spread")]
+        manipulated = [r for r in results if r.get("is_manipulated")]
         msg = ""
         if not results:
             msg = "Предметы не найдены. Попробуйте другой запрос или подождите 1-2 мин (Steam может ограничивать запросы)."
-        elif len(profitable) == 0 and len(with_history) == 0:
-            msg = f"Найдено {len(results)} предметов, но ни один не имеет скидку ≥ {threshold_pct}% и нет недавних продаж со скидкой."
-        elif len(profitable) == 0 and len(with_history) > 0:
-            msg = f"Сейчас прибыльных нет, но {len(with_history)} предметов имели продажи со скидкой за последние 2 недели — стоит следить."
+        elif len(ideal) == 0 and len(good_spread) == 0:
+            msg = f"Найдено {len(results)} предметов, но ни один не имеет спред ≥ {threshold_pct}% между ордером и рыночной ценой."
+        elif len(ideal) > 0:
+            msg = f"Найдено {len(ideal)} идеальных предметов (ликвидные, хороший спред, без манипуляций)."
         return JSONResponse({"success": True, "results": results, "count": len(results),
-                             "profitable_count": len(profitable),
-                             "worth_tracking_count": len(worth_tracking),
-                             "history_discount_count": len(with_history),
+                             "ideal_count": len(ideal),
+                             "liquid_count": len(liquid),
+                             "good_spread_count": len(good_spread),
+                             "manipulated_count": len(manipulated),
                              "message": msg})
     except Exception as e:
         return JSONResponse({"success": False, "results": [], "count": 0,
