@@ -279,14 +279,13 @@ async def scanner_scan(request: Request):
     app_id = int(data.get("app_id", 730))
     min_price_usd = float(data.get("min_price_usd", 1.0))
     threshold_pct = float(data.get("threshold_pct", 17.0))
-    count = min(int(data.get("count", 20)), 50)
+    max_results = min(int(data.get("max_results", 30)), 60)
     settings = db.get_all_settings()
     currency = int(settings.get("steam_currency", "5"))
-    if not query:
-        query = ""
     results = await mkt.scan_market(
         query=query, app_id=app_id, currency=currency,
-        min_price_usd=min_price_usd, threshold_pct=threshold_pct, count=count
+        min_price_usd=min_price_usd, threshold_pct=threshold_pct,
+        max_results=max_results
     )
     return JSONResponse({"success": True, "results": results, "count": len(results)})
 

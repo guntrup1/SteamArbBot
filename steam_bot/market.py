@@ -246,84 +246,109 @@ async def search_item(query: str, app_id: int = 730) -> list:
     return []
 
 
-async def scan_market(query: str, app_id: int = 730, currency: int = 5,
-                      min_price_usd: float = 1.0, threshold_pct: float = 17.0,
-                      count: int = 20) -> list:
-    """
-    Сканирует рынок Steam, находит предметы с хорошим потенциалом.
-    Возвращает список предметов с ценами, скидкой, историей.
-    """
-    search_params = {
+async def _fetch_search_page(session, app_id: int, query: str, start: int, page_size: int = 50) -> list:
+    """Запрос одной страницы Steam Market Search."""
+    params = {
         "appid": app_id,
         "query": query,
-        "start": 0,
-        "count": count,
+        "start": start,
+        "count": page_size,
         "search_descriptions": 0,
         "sort_column": "popular",
         "sort_dir": "desc",
         "norender": 1,
-        "currency": currency,
     }
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Accept": "application/json",
         "Referer": "https://steamcommunity.com/market/",
     }
-
-    search_results = []
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(STEAM_SEARCH_API, params=search_params, headers=headers,
-                                   timeout=aiohttp.ClientTimeout(total=15)) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    _log_api("scanner/search", {"query": query, "appid": app_id, "count": count},
-                             resp.status, {"total": data.get("total_count", 0),
-                                           "results": len(data.get("results", []))})
-                    for result in data.get("results", []):
-                        hash_name = result.get("hash_name", result.get("name", ""))
-                        sell_price = result.get("sell_price", 0)
-                        sell_price_usd = sell_price / 100.0
-                        asset_desc = result.get("asset_description", {})
-                        icon_url = ""
-                        if asset_desc.get("icon_url"):
-                            icon_url = f"https://community.akamai.steamstatic.com/economy/image/{asset_desc['icon_url']}/128x128"
-                        search_results.append({
-                            "name": result.get("name", ""),
-                            "hash_name": hash_name,
-                            "app_id": app_id,
-                            "sell_listings": result.get("sell_listings", 0),
-                            "sell_price_usd": sell_price_usd,
-                            "icon_url": icon_url,
-                            "steam_url": f"https://steamcommunity.com/market/listings/{app_id}/{hash_name.replace(' ', '%20')}",
-                        })
-                else:
-                    _log_api("scanner/search", search_params, resp.status, None, f"HTTP {resp.status}")
+        async with session.get(STEAM_SEARCH_API, params=params, headers=headers,
+                               timeout=aiohttp.ClientTimeout(total=15)) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                _log_api("scanner/search", {"query": query, "appid": app_id, "start": start},
+                         resp.status, {"total": data.get("total_count", 0),
+                                       "results": len(data.get("results", []))})
+                return data.get("results", []), data.get("total_count", 0)
+            else:
+                _log_api("scanner/search", params, resp.status, None, f"HTTP {resp.status}")
     except Exception as e:
-        _log_api("scanner/search", search_params, 0, None, str(e))
-        return []
+        _log_api("scanner/search", params, 0, None, str(e))
+    return [], 0
+
+
+async def scan_market(query: str, app_id: int = 730, currency: int = 5,
+                      min_price_usd: float = 1.0, threshold_pct: float = 17.0,
+                      max_results: int = 30) -> list:
+    """
+    Сканирует рынок Steam с пагинацией, находит предметы с потенциалом.
+    sell_price в ответе Steam всегда в центах USD, независимо от валюты.
+    Возвращает все найденные предметы, отсортированные по скидке.
+    """
+    PAGE_SIZE = 50
+    MAX_PAGES = 5
+    min_price_cents = int(min_price_usd * 100)
+
+    raw_candidates = []
+    async with aiohttp.ClientSession() as session:
+        for page in range(MAX_PAGES):
+            start = page * PAGE_SIZE
+            results, total = await _fetch_search_page(session, app_id, query, start, PAGE_SIZE)
+            if not results:
+                break
+            for r in results:
+                sell_price = r.get("sell_price", 0)
+                if sell_price < min_price_cents:
+                    continue
+                hash_name = r.get("hash_name", r.get("name", ""))
+                asset_desc = r.get("asset_description", {})
+                icon_url = ""
+                if asset_desc.get("icon_url"):
+                    icon_url = f"https://community.akamai.steamstatic.com/economy/image/{asset_desc['icon_url']}/128x128"
+                raw_candidates.append({
+                    "name": r.get("name", ""),
+                    "hash_name": hash_name,
+                    "app_id": app_id,
+                    "sell_listings": r.get("sell_listings", 0),
+                    "sell_price_usd": sell_price / 100.0,
+                    "icon_url": icon_url,
+                    "steam_url": f"https://steamcommunity.com/market/listings/{app_id}/{hash_name.replace(' ', '%20')}",
+                })
+
+            if len(raw_candidates) >= max_results * 2 or start + PAGE_SIZE >= total:
+                break
+            await asyncio.sleep(0.5)
+
+    seen = set()
+    unique_candidates = []
+    for item in raw_candidates:
+        if item["hash_name"] not in seen:
+            seen.add(item["hash_name"])
+            unique_candidates.append(item)
+
+    unique_candidates = unique_candidates[:max_results * 2]
 
     results = []
-    for item in search_results:
-        if item["sell_price_usd"] < min_price_usd:
-            continue
-
+    for item in unique_candidates:
         price_data = await get_item_price(item["hash_name"], app_id, currency)
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(0.4)
 
         if not price_data.get("success"):
             continue
 
         lowest = price_data["lowest_price"]
         median = price_data["median_price"]
-        volume_str = price_data.get("volume", "0").replace(",", "")
+
+        if lowest <= 0 or median <= 0:
+            continue
+
+        volume_str = str(price_data.get("volume", "0")).replace(",", "").replace(" ", "")
         try:
             volume = int(volume_str)
         except Exception:
             volume = 0
-
-        if lowest <= 0 or median <= 0:
-            continue
 
         discount = ((median - lowest) / median) * 100
         profit_info = calculate_profit(lowest, median)
@@ -341,6 +366,7 @@ async def scan_market(query: str, app_id: int = 730, currency: int = 5,
             "icon_url": item["icon_url"],
             "steam_url": item["steam_url"],
             "sell_listings": item["sell_listings"],
+            "sell_price_usd": round(item["sell_price_usd"], 2),
             "lowest_price": lowest,
             "lowest_price_raw": price_data["lowest_price_raw"],
             "median_price": median,
@@ -355,5 +381,8 @@ async def scan_market(query: str, app_id: int = 730, currency: int = 5,
             "history": history_stats,
         })
 
-    results.sort(key=lambda x: (not x["is_profitable"], -x["discount_pct"], -x["volume"]))
+        if len(results) >= max_results:
+            break
+
+    results.sort(key=lambda x: (-x["discount_pct"], -x["volume"]))
     return results

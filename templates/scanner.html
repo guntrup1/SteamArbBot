@@ -5,6 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Steam Market Bot — Сканер</title>
 <link rel="stylesheet" href="/static/style.css">
+<style>
+.preset-grid { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+.preset-btn {
+  padding:5px 12px; border-radius:20px; border:1px solid var(--border);
+  background:var(--bg-card2); color:var(--text); cursor:pointer;
+  font-size:12px; transition:all .15s; white-space:nowrap;
+}
+.preset-btn:hover { border-color:var(--blue); color:var(--blue); }
+.preset-btn.active { background:var(--blue); color:#0d1117; border-color:var(--blue); font-weight:600; }
+
+.score-bar { display:flex; gap:3px; align-items:center; }
+.score-dot { width:8px; height:8px; border-radius:50%; background:var(--border); }
+.score-dot.fill-green { background:var(--green); }
+.score-dot.fill-yellow { background:var(--yellow); }
+
+.result-row td { vertical-align:middle; border-bottom:1px solid var(--border); }
+.result-row:hover { background:rgba(255,255,255,0.02); }
+.result-row.profitable { background:rgba(63,185,80,0.04); }
+</style>
 </head>
 <body>
 
@@ -23,18 +42,102 @@
 <div class="container">
 
   <div class="mb-16">
-    <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">🔍 Сканер рынка</h2>
-    <p class="text-muted" style="font-size:13px">Поиск ходовых предметов с потенциалом для торговли по вашей стратегии (скидка ≥ порогу от медианной цены)</p>
+    <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">🔍 Сканер рынка Steam</h2>
+    <p class="text-muted" style="font-size:13px">Находит предметы с наибольшей скидкой от медианной цены. Пагинация по 250 предметам — больше шансов найти выгодные позиции.</p>
   </div>
 
-  <!-- ── FORM ── -->
+  <!-- ── WEAPON TYPE PRESETS ── -->
+  <div class="card mb-16">
+    <div class="card-header">🎮 Быстрый выбор типа предмета</div>
+    <div class="card-body" style="padding-bottom:8px">
+
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600">CS2 — Ножи</div>
+      <div class="preset-grid" id="presets-knives">
+        <button class="preset-btn" onclick="setPreset('★', 730)">★ Все ножи</button>
+        <button class="preset-btn" onclick="setPreset('★ Karambit', 730)">Karambit</button>
+        <button class="preset-btn" onclick="setPreset('★ Butterfly Knife', 730)">Butterfly</button>
+        <button class="preset-btn" onclick="setPreset('★ M9 Bayonet', 730)">M9 Bayonet</button>
+        <button class="preset-btn" onclick="setPreset('★ Bayonet', 730)">Bayonet</button>
+        <button class="preset-btn" onclick="setPreset('★ Flip Knife', 730)">Flip Knife</button>
+        <button class="preset-btn" onclick="setPreset('★ Gut Knife', 730)">Gut Knife</button>
+        <button class="preset-btn" onclick="setPreset('★ Huntsman Knife', 730)">Huntsman</button>
+        <button class="preset-btn" onclick="setPreset('★ Falchion Knife', 730)">Falchion</button>
+        <button class="preset-btn" onclick="setPreset('★ Bowie Knife', 730)">Bowie</button>
+        <button class="preset-btn" onclick="setPreset('★ Shadow Daggers', 730)">Shadow Daggers</button>
+        <button class="preset-btn" onclick="setPreset('★ Navaja Knife', 730)">Navaja</button>
+        <button class="preset-btn" onclick="setPreset('★ Stiletto Knife', 730)">Stiletto</button>
+        <button class="preset-btn" onclick="setPreset('★ Ursus Knife', 730)">Ursus</button>
+        <button class="preset-btn" onclick="setPreset('★ Skeleton Knife', 730)">Skeleton</button>
+        <button class="preset-btn" onclick="setPreset('★ Survival Knife', 730)">Survival</button>
+      </div>
+
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600;margin-top:10px">CS2 — Пистолеты</div>
+      <div class="preset-grid" id="presets-pistols">
+        <button class="preset-btn" onclick="setPreset('Desert Eagle', 730)">Desert Eagle</button>
+        <button class="preset-btn" onclick="setPreset('Glock-18', 730)">Glock-18</button>
+        <button class="preset-btn" onclick="setPreset('USP-S', 730)">USP-S</button>
+        <button class="preset-btn" onclick="setPreset('P250', 730)">P250</button>
+        <button class="preset-btn" onclick="setPreset('Five-SeveN', 730)">Five-SeveN</button>
+        <button class="preset-btn" onclick="setPreset('Tec-9', 730)">Tec-9</button>
+        <button class="preset-btn" onclick="setPreset('CZ75-Auto', 730)">CZ75-Auto</button>
+      </div>
+
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600;margin-top:10px">CS2 — Винтовки</div>
+      <div class="preset-grid" id="presets-rifles">
+        <button class="preset-btn" onclick="setPreset('AK-47', 730)">AK-47</button>
+        <button class="preset-btn" onclick="setPreset('AWP', 730)">AWP</button>
+        <button class="preset-btn" onclick="setPreset('M4A4', 730)">M4A4</button>
+        <button class="preset-btn" onclick="setPreset('M4A1-S', 730)">M4A1-S</button>
+        <button class="preset-btn" onclick="setPreset('SG 553', 730)">SG 553</button>
+        <button class="preset-btn" onclick="setPreset('AUG', 730)">AUG</button>
+        <button class="preset-btn" onclick="setPreset('FAMAS', 730)">FAMAS</button>
+        <button class="preset-btn" onclick="setPreset('Galil AR', 730)">Galil AR</button>
+        <button class="preset-btn" onclick="setPreset('SSG 08', 730)">SSG 08</button>
+        <button class="preset-btn" onclick="setPreset('SCAR-20', 730)">SCAR-20</button>
+        <button class="preset-btn" onclick="setPreset('G3SG1', 730)">G3SG1</button>
+      </div>
+
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600;margin-top:10px">CS2 — Автоматы и дробовики</div>
+      <div class="preset-grid">
+        <button class="preset-btn" onclick="setPreset('MP9', 730)">MP9</button>
+        <button class="preset-btn" onclick="setPreset('MP7', 730)">MP7</button>
+        <button class="preset-btn" onclick="setPreset('P90', 730)">P90</button>
+        <button class="preset-btn" onclick="setPreset('UMP-45', 730)">UMP-45</button>
+        <button class="preset-btn" onclick="setPreset('MAC-10', 730)">MAC-10</button>
+        <button class="preset-btn" onclick="setPreset('Nova', 730)">Nova</button>
+        <button class="preset-btn" onclick="setPreset('MAG-7', 730)">MAG-7</button>
+        <button class="preset-btn" onclick="setPreset('XM1014', 730)">XM1014</button>
+        <button class="preset-btn" onclick="setPreset('Negev', 730)">Negev</button>
+        <button class="preset-btn" onclick="setPreset('M249', 730)">M249</button>
+      </div>
+
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600;margin-top:10px">CS2 — Перчатки и другое</div>
+      <div class="preset-grid">
+        <button class="preset-btn" onclick="setPreset('★ Sport Gloves', 730)">Sport Gloves</button>
+        <button class="preset-btn" onclick="setPreset('★ Driver Gloves', 730)">Driver Gloves</button>
+        <button class="preset-btn" onclick="setPreset('★ Moto Gloves', 730)">Moto Gloves</button>
+        <button class="preset-btn" onclick="setPreset('★ Hand Wraps', 730)">Hand Wraps</button>
+        <button class="preset-btn" onclick="setPreset('★ Specialist Gloves', 730)">Specialist Gloves</button>
+        <button class="preset-btn" onclick="setPreset('Sticker', 730)">Стикеры</button>
+      </div>
+
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600;margin-top:10px">Другие игры</div>
+      <div class="preset-grid">
+        <button class="preset-btn" onclick="setPreset('Arcana', 570, true)">Dota 2 Arcana</button>
+        <button class="preset-btn" onclick="setPreset('Immortal', 570, true)">Dota 2 Immortal</button>
+        <button class="preset-btn" onclick="setPreset('', 570, true)">Dota 2 популярные</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SCAN PARAMS ── -->
   <div class="card mb-16">
     <div class="card-header">⚙️ Параметры сканирования</div>
     <div class="card-body">
       <div class="grid-2" style="gap:12px;margin-bottom:12px">
         <div>
-          <label class="form-label">Поисковый запрос</label>
-          <input type="text" id="scan-query" class="form-control" placeholder="Knife, AK-47, Dragon Lore... (пусто = популярные)" value="">
+          <label class="form-label">Поисковый запрос <span style="color:var(--text-muted);font-size:11px">(или выберите тип выше)</span></label>
+          <input type="text" id="scan-query" class="form-control" placeholder="AK-47, AWP, ★ Karambit...">
         </div>
         <div>
           <label class="form-label">Игра</label>
@@ -46,80 +149,84 @@
           </select>
         </div>
         <div>
-          <label class="form-label">Мин. цена (USD)</label>
-          <input type="number" id="scan-min-price" class="form-control" min="0.01" step="0.1" value="1.0">
+          <label class="form-label">Мин. цена (USD) <span style="color:var(--text-muted);font-size:11px">— отсекает слишком дешёвые</span></label>
+          <input type="number" id="scan-min-price" class="form-control" min="0.01" step="0.5" value="1.0">
         </div>
         <div>
-          <label class="form-label">Порог скидки (%)</label>
+          <label class="form-label">Порог скидки (%) <span style="color:var(--text-muted);font-size:11px">— стратегия покупки</span></label>
           <input type="number" id="scan-threshold" class="form-control" min="5" max="80" step="1" value="17">
         </div>
         <div>
-          <label class="form-label">Количество предметов для анализа</label>
-          <select id="scan-count" class="form-control">
-            <option value="10">10 предметов</option>
-            <option value="20" selected>20 предметов</option>
-            <option value="30">30 предметов</option>
+          <label class="form-label">Макс. результатов (после фильтра)</label>
+          <select id="scan-max" class="form-control">
+            <option value="20">20 предметов</option>
+            <option value="30" selected>30 предметов</option>
             <option value="50">50 предметов</option>
+            <option value="60">60 предметов (макс)</option>
           </select>
         </div>
         <div style="display:flex;align-items:flex-end">
-          <button class="btn btn-blue" id="scan-btn" onclick="startScan()" style="width:100%">
-            🔍 Запустить сканирование
+          <button class="btn btn-blue" id="scan-btn" onclick="startScan()" style="width:100%;font-size:14px">
+            🔍 Сканировать
           </button>
         </div>
       </div>
 
       <div id="scan-progress" style="display:none">
-        <div style="background:var(--bg-card2);border-radius:6px;padding:12px;margin-top:8px">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-            <span class="spinner" style="border-color:var(--blue);border-top-color:transparent"></span>
-            <span id="scan-status-text" class="text-muted" style="font-size:13px">Сканирование...</span>
+        <div style="background:var(--bg-card2);border-radius:6px;padding:12px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+            <span id="scan-status-text" class="text-muted" style="font-size:12px;display:flex;align-items:center;gap:8px">
+              <span class="spinner" style="width:14px;height:14px;border-width:2px"></span>
+              Поиск предметов...
+            </span>
+            <span id="scan-elapsed" class="text-muted" style="font-size:12px"></span>
           </div>
-          <div style="background:var(--border);border-radius:4px;height:4px;overflow:hidden">
-            <div id="scan-progress-bar" style="background:var(--blue);height:100%;width:0%;transition:width 0.3s"></div>
+          <div style="background:var(--border);border-radius:4px;height:5px;overflow:hidden">
+            <div id="scan-progress-bar" style="background:linear-gradient(90deg,var(--blue),var(--purple));height:100%;width:5%;transition:width 0.5s"></div>
           </div>
         </div>
       </div>
-
-      <div id="scan-last-updated" style="display:none;margin-top:8px;font-size:12px;color:var(--text-muted)"></div>
     </div>
   </div>
 
   <!-- ── RESULTS ── -->
-  <div class="card mb-16" id="results-card" style="display:none">
-    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
-      <span>📊 Результаты сканирования</span>
-      <div style="display:flex;gap:8px;align-items:center">
-        <span id="results-summary" class="badge" style="background:var(--bg-card2)"></span>
-        <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:6px;cursor:pointer">
-          <input type="checkbox" id="only-profitable" onchange="filterResults()" style="cursor:pointer">
-          Только прибыльные
-        </label>
-        <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px" onclick="startScan()">↻ Обновить</button>
+  <div id="results-section" style="display:none" class="mb-16">
+    <div class="card">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span>📊 Результаты</span>
+          <span id="results-summary" style="font-size:12px;color:var(--text-muted)"></span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:5px;cursor:pointer">
+            <input type="checkbox" id="only-profitable" onchange="filterResults()"> Только прибыльные (≥ порога)
+          </label>
+          <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px" onclick="startScan()">↻ Обновить</button>
+        </div>
       </div>
-    </div>
-    <div class="card-body" style="padding:0;overflow-x:auto">
-      <table class="scanner-table" id="results-table">
-        <thead>
-          <tr>
-            <th style="width:40px"></th>
-            <th>Предмет</th>
-            <th>Мин. цена</th>
-            <th>Медиана</th>
-            <th>Скидка</th>
-            <th>Чистая прибыль</th>
-            <th>Объём продаж</th>
-            <th>Лотов</th>
-            <th style="min-width:200px">История (7 дней)</th>
-            <th>Действия</th>
-          </tr>
-        </thead>
-        <tbody id="results-tbody"></tbody>
-      </table>
-      <div id="no-results" style="display:none;padding:32px;text-align:center;color:var(--text-muted)">
-        <div style="font-size:32px;margin-bottom:8px">🔎</div>
-        <div>Ничего не найдено по заданным критериям</div>
-        <div style="font-size:12px;margin-top:4px">Попробуйте изменить порог скидки или минимальную цену</div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px" id="results-table">
+          <thead>
+            <tr style="background:var(--bg-card2)">
+              <th style="padding:10px 8px;text-align:left;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)"></th>
+              <th style="padding:10px 8px;text-align:left;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">ПРЕДМЕТ</th>
+              <th style="padding:10px 8px;text-align:left;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">МИН. ЦЕНА</th>
+              <th style="padding:10px 8px;text-align:left;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">МЕДИАНА</th>
+              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">СКИДКА</th>
+              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">ПРИБЫЛЬ</th>
+              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">ОБЪЁМ/НЕД</th>
+              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">ЛОТОВ</th>
+              <th style="padding:10px 8px;text-align:left;color:var(--text-muted);font-size:11px;font-weight:600;min-width:160px;border-bottom:2px solid var(--border)">ИСТОРИЯ 7 ДНЕЙ</th>
+              <th style="padding:10px 8px;border-bottom:2px solid var(--border)"></th>
+            </tr>
+          </thead>
+          <tbody id="results-tbody"></tbody>
+        </table>
+        <div id="no-results" style="display:none;padding:40px;text-align:center;color:var(--text-muted)">
+          <div style="font-size:36px;margin-bottom:8px">🔎</div>
+          <div style="font-weight:600;margin-bottom:4px">Ничего не найдено</div>
+          <div style="font-size:12px">Попробуйте уменьшить минимальную цену или выбрать другой тип предмета</div>
+        </div>
       </div>
     </div>
   </div>
@@ -127,20 +234,19 @@
   <!-- ── API LOGS ── -->
   <div class="card">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
-      <span>📋 API Логи Steam запросов</span>
-      <div style="display:flex;gap:8px">
-        <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:6px;cursor:pointer">
-          <input type="checkbox" id="api-log-errors-only" onchange="renderApiLogs()" style="cursor:pointer">
-          Только ошибки
+      <span>📋 API Логи запросов к Steam</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:5px;cursor:pointer">
+          <input type="checkbox" id="api-errors-only" onchange="renderApiLogs()"> Только ошибки
         </label>
         <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px" onclick="loadApiLogs()">↻</button>
       </div>
     </div>
-    <div class="card-body" style="padding:0;max-height:400px;overflow-y:auto" id="api-logs-container">
+    <div style="max-height:350px;overflow-y:auto">
       <table style="width:100%;border-collapse:collapse;font-size:12px">
         <thead style="position:sticky;top:0;background:var(--bg-card2)">
           <tr>
-            <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border)">Время</th>
+            <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap">Время</th>
             <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border)">Эндпоинт</th>
             <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border)">Статус</th>
             <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border)">Параметры</th>
@@ -148,7 +254,7 @@
           </tr>
         </thead>
         <tbody id="api-logs-tbody">
-          <tr><td colspan="5" style="padding:24px;text-align:center;color:var(--text-muted)">Загрузка...</td></tr>
+          <tr><td colspan="5" style="padding:20px;text-align:center;color:var(--text-muted)">Загрузка...</td></tr>
         </tbody>
       </table>
     </div>
@@ -160,6 +266,10 @@
 
 <script>
 let _allResults = [];
+let _scanStart = 0;
+let _elapsedTimer = null;
+
+const WEAPON_PRESETS = {};
 
 function showToast(msg, type = 'info') {
   const c = document.getElementById('toast-container');
@@ -171,83 +281,102 @@ function showToast(msg, type = 'info') {
   setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3500);
 }
 
+function setPreset(query, appId, changeGame = false) {
+  document.getElementById('scan-query').value = query;
+  if (changeGame) {
+    document.getElementById('scan-appid').value = appId;
+  } else {
+    document.getElementById('scan-appid').value = 730;
+  }
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
 async function startScan() {
   const btn = document.getElementById('scan-btn');
   const progress = document.getElementById('scan-progress');
   const statusText = document.getElementById('scan-status-text');
   const progressBar = document.getElementById('scan-progress-bar');
-
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Сканирование...';
-  progress.style.display = 'block';
-  progressBar.style.width = '10%';
-  statusText.textContent = 'Запрос к Steam Market API...';
+  const elapsed = document.getElementById('scan-elapsed');
 
   const query = document.getElementById('scan-query').value.trim();
   const appId = parseInt(document.getElementById('scan-appid').value);
   const minPrice = parseFloat(document.getElementById('scan-min-price').value) || 1.0;
   const threshold = parseFloat(document.getElementById('scan-threshold').value) || 17.0;
-  const count = parseInt(document.getElementById('scan-count').value) || 20;
+  const maxResults = parseInt(document.getElementById('scan-max').value) || 30;
 
-  const progressInterval = setInterval(() => {
-    const cur = parseFloat(progressBar.style.width);
-    if (cur < 85) {
-      progressBar.style.width = (cur + Math.random() * 8) + '%';
-      const phase = cur < 30 ? 'Поиск предметов...' : cur < 60 ? 'Получение цен...' : 'Анализ истории...';
-      statusText.textContent = phase;
-    }
-  }, 800);
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px"></span> Сканирование...';
+  progress.style.display = 'block';
+  progressBar.style.width = '5%';
+
+  _scanStart = Date.now();
+  if (_elapsedTimer) clearInterval(_elapsedTimer);
+  _elapsedTimer = setInterval(() => {
+    const sec = Math.floor((Date.now() - _scanStart) / 1000);
+    elapsed.textContent = `${sec}с`;
+    const phases = [
+      [0, 'Загрузка страниц поиска Steam...'],
+      [15, 'Фильтрация по цене...'],
+      [25, 'Получение текущих цен...'],
+      [60, 'Запрос истории цен...'],
+      [90, 'Финальная сортировка...'],
+    ];
+    const phase = [...phases].reverse().find(([s]) => sec >= s);
+    const pct = Math.min(5 + (sec / 150) * 90, 90);
+    progressBar.style.width = pct + '%';
+    const msg = phase ? phase[1] : 'Сканирование...';
+    statusText.innerHTML = `<span class="spinner" style="width:14px;height:14px;border-width:2px"></span> ${msg}`;
+  }, 1000);
 
   try {
     const res = await fetch('/api/scanner/scan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, app_id: appId, min_price_usd: minPrice, threshold_pct: threshold, count })
+      body: JSON.stringify({ query, app_id: appId, min_price_usd: minPrice, threshold_pct: threshold, max_results: maxResults })
     });
     const data = await res.json();
-    clearInterval(progressInterval);
+
+    clearInterval(_elapsedTimer);
     progressBar.style.width = '100%';
-    statusText.textContent = `Найдено ${data.results?.length || 0} предметов`;
+    const totalSec = ((Date.now() - _scanStart) / 1000).toFixed(1);
+    statusText.innerHTML = `✅ Готово за ${totalSec}с — найдено ${data.results?.length || 0} предметов`;
 
     if (data.success) {
       _allResults = data.results || [];
       renderResults(_allResults);
-      document.getElementById('scan-last-updated').style.display = 'block';
-      document.getElementById('scan-last-updated').textContent = `Обновлено: ${new Date().toLocaleTimeString('ru-RU')} · Всего найдено: ${_allResults.length}`;
     } else {
       showToast('Ошибка сканирования', 'error');
     }
   } catch (e) {
-    clearInterval(progressInterval);
+    clearInterval(_elapsedTimer);
+    statusText.innerHTML = `❌ Ошибка: ${e.message}`;
     showToast('Ошибка: ' + e.message, 'error');
   } finally {
-    setTimeout(() => {
-      progress.style.display = 'none';
-      progressBar.style.width = '0%';
-    }, 1000);
+    setTimeout(() => { progress.style.display = 'none'; progressBar.style.width = '5%'; }, 3000);
     btn.disabled = false;
-    btn.innerHTML = '🔍 Запустить сканирование';
+    btn.innerHTML = '🔍 Сканировать';
     loadApiLogs();
   }
 }
 
 function filterResults() {
   const onlyProfitable = document.getElementById('only-profitable').checked;
-  const filtered = onlyProfitable ? _allResults.filter(r => r.is_profitable) : _allResults;
+  const threshold = parseFloat(document.getElementById('scan-threshold').value) || 17.0;
+  const filtered = onlyProfitable ? _allResults.filter(r => r.has_discount) : _allResults;
   renderResults(filtered);
 }
 
 function renderResults(results) {
-  const card = document.getElementById('results-card');
+  const section = document.getElementById('results-section');
   const tbody = document.getElementById('results-tbody');
   const noResults = document.getElementById('no-results');
   const summary = document.getElementById('results-summary');
-
-  card.style.display = 'block';
+  section.style.display = 'block';
 
   const profitable = results.filter(r => r.is_profitable).length;
   const withDiscount = results.filter(r => r.has_discount).length;
-  summary.textContent = `${results.length} предметов · ${withDiscount} со скидкой · ${profitable} прибыльных`;
+  summary.textContent = `${results.length} предметов · ${withDiscount} с нужной скидкой · ${profitable} прибыльных`;
 
   if (results.length === 0) {
     tbody.innerHTML = '';
@@ -256,62 +385,68 @@ function renderResults(results) {
   }
   noResults.style.display = 'none';
 
-  tbody.innerHTML = results.map(item => {
-    const discountColor = item.is_profitable ? 'var(--green)' : item.has_discount ? 'var(--yellow)' : 'var(--text-muted)';
-    const discountBg = item.is_profitable ? 'rgba(63,185,80,0.1)' : item.has_discount ? 'rgba(210,153,34,0.1)' : '';
-    const profitColor = item.net_profit_pct > 0 ? 'var(--green)' : 'var(--text-muted)';
+  tbody.innerHTML = results.map((item) => {
+    const idx = _allResults.indexOf(item);
+    const discountColor = item.is_profitable ? 'var(--green)' : item.has_discount ? 'var(--yellow)' : item.discount_pct > 0 ? 'var(--text)' : 'var(--text-muted)';
+    const discountBg = item.is_profitable ? 'rgba(63,185,80,0.15)' : item.has_discount ? 'rgba(210,153,34,0.15)' : 'transparent';
+    const profitColor = item.net_profit_pct > 0 ? 'var(--green)' : item.net_profit_pct > -5 ? 'var(--yellow)' : 'var(--text-muted)';
 
     const h = item.history || {};
     const weekTotal = h.week_total || 0;
     const atDiscount = h.at_discount || 0;
     const atMedian = h.at_median_or_above || 0;
-    const histBar = weekTotal > 0 ? `
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">
-        📦 ${weekTotal} сделок за 7 дней
-      </div>
-      <div style="display:flex;gap:4px;align-items:center;font-size:11px">
-        <div style="width:${Math.round(atDiscount/weekTotal*100)}%;min-width:${atDiscount>0?'4px':'0'};height:8px;background:var(--green);border-radius:2px" title="По скидке: ${atDiscount}"></div>
-        <div style="width:${Math.round(atMedian/weekTotal*100)}%;min-width:${atMedian>0?'4px':'0'};height:8px;background:var(--blue);border-radius:2px" title="По медиане: ${atMedian}"></div>
-        <div style="flex:1;height:8px;background:var(--border);border-radius:2px"></div>
-      </div>
-      <div style="display:flex;gap:12px;font-size:11px;margin-top:3px">
-        <span style="color:var(--green)">↓${atDiscount} скидка</span>
-        <span style="color:var(--blue)">↑${atMedian} медиана</span>
-      </div>` :
-      `<span style="color:var(--text-muted);font-size:11px">История недоступна</span>`;
+    let histHtml;
+    if (weekTotal > 0) {
+      const discPct = Math.round(atDiscount / weekTotal * 100);
+      const medPct = Math.round(atMedian / weekTotal * 100);
+      histHtml = `
+        <div style="font-size:11px;margin-bottom:3px">
+          <span style="color:var(--text-muted)">${weekTotal} сделок</span>
+          <span style="margin-left:6px;color:var(--green)">↓${atDiscount} скидка</span>
+          <span style="margin-left:6px;color:var(--blue)">↑${atMedian} медиана</span>
+        </div>
+        <div style="display:flex;height:6px;border-radius:3px;overflow:hidden;gap:1px">
+          <div style="width:${discPct}%;background:var(--green);min-width:${atDiscount>0?2:0}px" title="По скидке: ${atDiscount}"></div>
+          <div style="width:${medPct}%;background:var(--blue);min-width:${atMedian>0?2:0}px" title="По медиане: ${atMedian}"></div>
+          <div style="flex:1;background:var(--border)"></div>
+        </div>`;
+    } else {
+      histHtml = `<span style="color:var(--text-muted);font-size:11px">нет данных</span>`;
+    }
 
     const imgHtml = item.icon_url
-      ? `<img src="${item.icon_url}" style="width:32px;height:32px;object-fit:contain;border-radius:4px" onerror="this.style.display='none'">`
-      : `<div style="width:32px;height:32px;background:var(--bg-card2);border-radius:4px"></div>`;
+      ? `<img src="${item.icon_url}" style="width:36px;height:36px;object-fit:contain;border-radius:4px" onerror="this.style.display='none'">`
+      : `<div style="width:36px;height:36px;background:var(--bg-card2);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:16px">🔷</div>`;
 
-    const alreadyTracked = false;
+    const rowClass = `result-row${item.is_profitable ? ' profitable' : ''}`;
+    const rankBadge = idx < 3 && item.is_profitable
+      ? `<span style="font-size:10px;background:var(--green);color:#0d1117;padding:1px 5px;border-radius:3px;margin-left:4px">TOP</span>`
+      : '';
 
-    return `<tr style="border-bottom:1px solid var(--border);${item.is_profitable ? 'background:rgba(63,185,80,0.03)' : ''}">
-      <td style="padding:10px 12px">${imgHtml}</td>
-      <td style="padding:10px 12px">
-        <div style="font-weight:600;margin-bottom:2px;font-size:13px">${escHtml(item.name)}</div>
-        <div style="font-size:11px;color:var(--text-muted)">${item.app_id === 730 ? 'CS2' : item.app_id === 570 ? 'Dota 2' : 'TF2'}</div>
+    return `<tr class="${rowClass}">
+      <td style="padding:8px">${imgHtml}</td>
+      <td style="padding:8px 6px;max-width:220px">
+        <div style="font-weight:600;font-size:12px;margin-bottom:2px">${escHtml(item.name)}${rankBadge}</div>
+        <div style="font-size:11px;color:var(--text-muted)">~$${item.sell_price_usd.toFixed(2)}</div>
       </td>
-      <td style="padding:10px 12px;font-weight:600">${escHtml(item.lowest_price_raw || item.lowest_price.toFixed(2))}</td>
-      <td style="padding:10px 12px;color:var(--text-muted)">${escHtml(item.median_price_raw || item.median_price.toFixed(2))}</td>
-      <td style="padding:10px 12px">
-        <span style="background:${discountBg};color:${discountColor};font-weight:700;padding:3px 8px;border-radius:12px;font-size:13px">
-          ${item.discount_pct.toFixed(1)}%
+      <td style="padding:8px 6px;font-weight:700;white-space:nowrap">${escHtml(item.lowest_price_raw || item.lowest_price.toFixed(2))}</td>
+      <td style="padding:8px 6px;color:var(--text-muted);white-space:nowrap">${escHtml(item.median_price_raw || item.median_price.toFixed(2))}</td>
+      <td style="padding:8px 6px;text-align:center">
+        <span style="background:${discountBg};color:${discountColor};font-weight:700;padding:3px 8px;border-radius:12px;font-size:13px;white-space:nowrap">
+          ${item.discount_pct > 0 ? '' : ''}${item.discount_pct.toFixed(1)}%
         </span>
       </td>
-      <td style="padding:10px 12px;color:${profitColor};font-weight:600">
-        ${item.net_profit_pct > 0 ? '+' : ''}${item.net_profit_pct.toFixed(1)}%
-        <div style="font-size:11px;color:var(--text-muted)">${item.profit > 0 ? '+' : ''}${item.profit.toFixed(2)}</div>
+      <td style="padding:8px 6px;text-align:center;color:${profitColor};font-weight:600;white-space:nowrap">
+        ${item.net_profit_pct >= 0 ? '+' : ''}${item.net_profit_pct.toFixed(1)}%
       </td>
-      <td style="padding:10px 12px;text-align:center">
-        <span style="font-weight:600">${item.volume_raw || item.volume}</span>
-      </td>
-      <td style="padding:10px 12px;text-align:center;color:var(--text-muted)">${item.sell_listings}</td>
-      <td style="padding:10px 12px">${histBar}</td>
-      <td style="padding:10px 12px">
-        <div style="display:flex;gap:6px;flex-wrap:nowrap">
-          <a href="${escHtml(item.steam_url)}" target="_blank" class="btn btn-ghost" style="padding:4px 8px;font-size:11px">🔗 Steam</a>
-          <button class="btn btn-green" style="padding:4px 8px;font-size:11px;white-space:nowrap" onclick="addToWatchlist(${JSON.stringify(item).replace(/"/g, '&quot;')})">+ Слежка</button>
+      <td style="padding:8px 6px;text-align:center;font-weight:600">${item.volume_raw || item.volume}</td>
+      <td style="padding:8px 6px;text-align:center;color:var(--text-muted)">${item.sell_listings}</td>
+      <td style="padding:8px 6px;min-width:160px">${histHtml}</td>
+      <td style="padding:8px 6px;white-space:nowrap">
+        <div style="display:flex;gap:5px">
+          <a href="${escHtml(item.steam_url)}" target="_blank" class="btn btn-ghost" style="padding:4px 8px;font-size:11px">🔗</a>
+          <button class="btn ${item.is_profitable ? 'btn-green' : 'btn-ghost'}" style="padding:4px 8px;font-size:11px;white-space:nowrap"
+            onclick="addToWatchlist(${idx})">+ Слежка</button>
         </div>
       </td>
     </tr>`;
@@ -319,75 +454,56 @@ function renderResults(results) {
 }
 
 function escHtml(str) {
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-async function addToWatchlist(item) {
+async function addToWatchlist(idx) {
+  const item = _allResults[idx];
+  if (!item) { showToast('Ошибка: предмет не найден', 'error'); return; }
   try {
     const res = await fetch('/api/items/add', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: item.name,
-        hash_name: item.hash_name,
-        app_id: item.app_id,
-        steam_url: item.steam_url,
-        image_url: item.icon_url,
-      })
+      body: JSON.stringify({ name: item.name, hash_name: item.hash_name, app_id: item.app_id, steam_url: item.steam_url, image_url: item.icon_url })
     });
     const data = await res.json();
     showToast(data.success ? '✅ ' + data.message : '❌ ' + data.message, data.success ? 'success' : 'error');
-  } catch (e) {
-    showToast('❌ Ошибка: ' + e.message, 'error');
-  }
+  } catch(e) { showToast('❌ Ошибка: ' + e.message, 'error'); }
 }
 
 let _apiLogs = [];
-
 async function loadApiLogs() {
   try {
-    const res = await fetch('/api/logs/api?limit=200');
+    const res = await fetch('/api/logs/api?limit=300');
     const data = await res.json();
     _apiLogs = (data.logs || []).reverse();
     renderApiLogs();
-  } catch (e) {
-    console.error('Failed to load API logs', e);
-  }
+  } catch(e) {}
 }
 
 function renderApiLogs() {
   const tbody = document.getElementById('api-logs-tbody');
-  const errorsOnly = document.getElementById('api-log-errors-only').checked;
+  const errorsOnly = document.getElementById('api-errors-only').checked;
   const logs = errorsOnly ? _apiLogs.filter(l => l.error || (l.status_code && l.status_code >= 400)) : _apiLogs;
-
-  if (logs.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--text-muted)">Нет записей</td></tr>';
+  if (!logs.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--text-muted)">Нет записей</td></tr>';
     return;
   }
-
-  tbody.innerHTML = logs.map(log => {
+  tbody.innerHTML = logs.slice(0, 100).map(log => {
     const isError = log.error || (log.status_code && log.status_code >= 400);
     const statusColor = log.status_code === 200 ? 'var(--green)' : isError ? 'var(--red)' : 'var(--text-muted)';
-    const rowBg = isError ? 'background:rgba(248,81,73,0.05)' : '';
-    const time = log.created_at ? new Date(log.created_at).toLocaleTimeString('ru-RU') : '-';
-
+    const time = log.created_at ? log.created_at.substring(11, 19) : '-';
     let params = '';
-    try { const p = JSON.parse(log.params || '{}'); params = Object.entries(p).map(([k,v]) => `${k}=${v}`).join(', '); } catch (e) { params = log.params || ''; }
-
+    try { const p = JSON.parse(log.params||'{}'); params = Object.entries(p).map(([k,v]) => `${k}=${v}`).join(', '); } catch(e) { params = log.params||''; }
     let resp = '';
-    if (log.error) {
-      resp = `<span style="color:var(--red)">${escHtml(log.error)}</span>`;
-    } else if (log.response) {
-      try { const r = JSON.parse(log.response); resp = JSON.stringify(r).slice(0, 120) + (JSON.stringify(r).length > 120 ? '...' : ''); }
-      catch(e) { resp = String(log.response).slice(0, 120); }
-    }
-
-    return `<tr style="border-bottom:1px solid var(--border);${rowBg}">
-      <td style="padding:6px 12px;color:var(--text-muted);white-space:nowrap">${time}</td>
-      <td style="padding:6px 12px;font-family:monospace;color:var(--blue)">${escHtml(log.endpoint)}</td>
-      <td style="padding:6px 12px;font-weight:600;color:${statusColor}">${log.status_code || '-'}</td>
-      <td style="padding:6px 12px;color:var(--text-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(params)}">${escHtml(params)}</td>
-      <td style="padding:6px 12px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(log.error || log.response || '')}">${resp}</td>
+    if (log.error) resp = `<span style="color:var(--red)">${escHtml(log.error)}</span>`;
+    else if (log.response) { try { resp = JSON.stringify(JSON.parse(log.response)).slice(0,100); } catch(e) { resp = String(log.response).slice(0,100); } }
+    return `<tr style="border-bottom:1px solid var(--border);${isError?'background:rgba(248,81,73,0.05)':''}">
+      <td style="padding:5px 12px;color:var(--text-muted);white-space:nowrap">${time}</td>
+      <td style="padding:5px 12px;font-family:monospace;color:var(--blue)">${escHtml(log.endpoint)}</td>
+      <td style="padding:5px 12px;font-weight:700;color:${statusColor}">${log.status_code||'-'}</td>
+      <td style="padding:5px 12px;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(params)}">${escHtml(params.slice(0,80))}</td>
+      <td style="padding:5px 12px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${resp}</td>
     </tr>`;
   }).join('');
 }
