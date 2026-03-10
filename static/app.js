@@ -103,7 +103,11 @@ function updateBotStatusUI(running, mode, balance) {
   if (stopBtn) stopBtn.disabled = !running;
   if (modeBadge) {
     modeBadge.className = `mode-badge ${mode === 'LIVE' ? 'live' : 'test'}`;
-    modeBadge.innerHTML = `<span class="dot ${running ? (mode === 'LIVE' ? 'red' : 'green') : 'gray'}"></span> ${mode}`;
+    const dotSpan = document.createElement('span');
+    dotSpan.className = `dot ${running ? (mode === 'LIVE' ? 'red' : 'green') : 'gray'}`;
+    modeBadge.textContent = '';
+    modeBadge.appendChild(dotSpan);
+    modeBadge.appendChild(document.createTextNode('\u00A0' + mode));
   }
   if (balanceEl && balance !== undefined) {
     balanceEl.textContent = `${balance.toFixed(2)} ${window.CURRENCY_SYMBOL || '₽'}`;
