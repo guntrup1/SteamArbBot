@@ -59,8 +59,8 @@ function appendLog(entry) {
   const modeClass = mode === 'LIVE' ? 'live' : 'test';
 
   el.innerHTML = `
-    <span class="log-time">${entry.time || ''}</span>
-    <span class="log-mode ${modeClass}">[${mode}]</span>
+    <span class="log-time">${escapeHtml(entry.time || '')}</span>
+    <span class="log-mode ${modeClass}">[${escapeHtml(mode)}]</span>
     <span class="log-msg">${escapeHtml(entry.message || '')}</span>
   `;
 
