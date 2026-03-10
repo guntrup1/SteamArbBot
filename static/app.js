@@ -212,10 +212,10 @@ async function doSearch(q) {
 
   results.innerHTML = data.results.map(item => `
     <div class="search-item" onclick="selectSearchItem(${JSON.stringify(item).replace(/"/g, '&quot;')})">
-      <img src="${item.icon_url || '/static/no-image.png'}" onerror="this.src='/static/no-image.png'" />
+      <img src="${escapeHtml(item.icon_url || '/static/no-image.png')}" onerror="this.src='/static/no-image.png'" />
       <div>
         <div class="search-item-name">${escapeHtml(item.name)}</div>
-        <div class="search-item-price">${item.price_text} · ${item.sell_listings} листингов</div>
+        <div class="search-item-price">${escapeHtml(String(item.price_text))} · ${escapeHtml(String(item.sell_listings))} листингов</div>
       </div>
     </div>
   `).join('');
