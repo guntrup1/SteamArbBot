@@ -35,6 +35,7 @@
   <div class="navbar-nav">
     <a href="/" class="nav-link">📊 Dashboard</a>
     <a href="/scanner" class="nav-link active">🔍 Сканер</a>
+    <a href="/arbitrage" class="nav-link">💹 Арбитраж</a>
     <a href="/settings" class="nav-link">⚙️ Настройки</a>
   </div>
   <div class="navbar-right">
@@ -45,8 +46,8 @@
 <div class="container">
 
   <div class="mb-16">
-    <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">🔍 Сканер рынка Steam — TF2 / Dota 2</h2>
-    <p class="text-muted" style="font-size:13px">Находит ликвидные предметы с хорошим спредом между ордерами на покупку и рыночной ценой. Проверяет историю продаж и детектирует манипуляции.</p>
+    <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">🔍 Сканер рынка Steam — TF2 / Dota 2 / CS2</h2>
+    <p class="text-muted" style="font-size:13px">Находит ликвидные предметы с хорошим спредом между ордерами на покупку и рыночной ценой. Проверяет историю продаж и детектирует манипуляции. Парсит ВСЕ предметы выбранной категории.</p>
   </div>
 
   <div class="card mb-16">
@@ -112,6 +113,48 @@
         <button class="preset-btn" onclick="setPreset('Treasure', 570)">Сокровищницы</button>
         <button class="preset-btn" onclick="setPreset('', 570)">Dota 2 популярные</button>
       </div>
+
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600;margin-top:14px">CS2 — Оружие</div>
+      <div class="preset-grid">
+        <button class="preset-btn" onclick="setPreset('AK-47', 730)">AK-47</button>
+        <button class="preset-btn" onclick="setPreset('M4A4', 730)">M4A4</button>
+        <button class="preset-btn" onclick="setPreset('M4A1-S', 730)">M4A1-S</button>
+        <button class="preset-btn" onclick="setPreset('AWP', 730)">AWP</button>
+        <button class="preset-btn" onclick="setPreset('USP-S', 730)">USP-S</button>
+        <button class="preset-btn" onclick="setPreset('Desert Eagle', 730)">Desert Eagle</button>
+        <button class="preset-btn" onclick="setPreset('Glock-18', 730)">Glock-18</button>
+        <button class="preset-btn" onclick="setPreset('P250', 730)">P250</button>
+        <button class="preset-btn" onclick="setPreset('Five-SeveN', 730)">Five-SeveN</button>
+        <button class="preset-btn" onclick="setPreset('SSG 08', 730)">SSG 08</button>
+        <button class="preset-btn" onclick="setPreset('FAMAS', 730)">FAMAS</button>
+        <button class="preset-btn" onclick="setPreset('Galil AR', 730)">Galil AR</button>
+      </div>
+
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600;margin-top:10px">CS2 — Ножи и перчатки</div>
+      <div class="preset-grid">
+        <button class="preset-btn" onclick="setPreset('Knife', 730)">Ножи (все)</button>
+        <button class="preset-btn" onclick="setPreset('Karambit', 730)">Karambit</button>
+        <button class="preset-btn" onclick="setPreset('Butterfly', 730)">Butterfly</button>
+        <button class="preset-btn" onclick="setPreset('Bayonet', 730)">Bayonet</button>
+        <button class="preset-btn" onclick="setPreset('M9 Bayonet', 730)">M9 Bayonet</button>
+        <button class="preset-btn" onclick="setPreset('Gloves', 730)">Перчатки (все)</button>
+        <button class="preset-btn" onclick="setPreset('Sport Gloves', 730)">Sport Gloves</button>
+        <button class="preset-btn" onclick="setPreset('Driver Gloves', 730)">Driver Gloves</button>
+      </div>
+
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600;margin-top:10px">CS2 — Кейсы, наклейки и прочее</div>
+      <div class="preset-grid">
+        <button class="preset-btn" onclick="setPreset('Case', 730)">Кейсы</button>
+        <button class="preset-btn" onclick="setPreset('Sticker', 730)">Наклейки</button>
+        <button class="preset-btn" onclick="setPreset('Graffiti', 730)">Граффити</button>
+        <button class="preset-btn" onclick="setPreset('Agent', 730)">Агенты</button>
+        <button class="preset-btn" onclick="setPreset('Patch', 730)">Нашивки</button>
+        <button class="preset-btn" onclick="setPreset('Music Kit', 730)">Music Kit</button>
+        <button class="preset-btn" onclick="setPreset('Pin', 730)">Значки</button>
+        <button class="preset-btn" onclick="setPreset('StatTrak', 730)">StatTrak</button>
+        <button class="preset-btn" onclick="setPreset('Souvenir', 730)">Сувениры</button>
+        <button class="preset-btn" onclick="setPreset('', 730)">CS2 популярные</button>
+      </div>
     </div>
   </div>
 
@@ -128,6 +171,7 @@
           <select id="scan-appid" class="form-control">
             <option value="440" selected>Team Fortress 2</option>
             <option value="570">Dota 2</option>
+            <option value="730">Counter-Strike 2</option>
           </select>
         </div>
         <div>
@@ -145,10 +189,11 @@
         <div>
           <label class="form-label">Макс. результатов</label>
           <select id="scan-max" class="form-control">
-            <option value="20">20 предметов</option>
-            <option value="30" selected>30 предметов</option>
-            <option value="50">50 предметов</option>
-            <option value="60">60 предметов (макс)</option>
+            <option value="30">30 предметов</option>
+            <option value="50" selected>50 предметов</option>
+            <option value="100">100 предметов</option>
+            <option value="200">200 предметов</option>
+            <option value="500">500 предметов (все)</option>
           </select>
         </div>
       </div>
@@ -342,7 +387,7 @@ function setPreset(query, appId) {
   document.getElementById('scan-query').value = query;
   document.getElementById('scan-appid').value = appId;
   document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-  event.target.classList.add('active');
+  if (window.event && window.event.target) window.event.target.classList.add('active');
 }
 
 async function startScan() {

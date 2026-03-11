@@ -168,7 +168,7 @@ async def add_item(request: Request):
     hash_name = data.get("hash_name", name).strip()
     app_id = int(data.get("app_id", 440))
     if str(app_id) not in cfg.SUPPORTED_APPS:
-        return JSONResponse({"success": False, "message": f"Игра {app_id} не поддерживается. Доступны: TF2 (440), Dota 2 (570)"})
+        return JSONResponse({"success": False, "message": f"Игра {app_id} не поддерживается. Доступны: TF2 (440), Dota 2 (570), CS2 (730)"})
     steam_url = data.get("steam_url", "").strip()
     image_url = data.get("image_url", "").strip()
     if not name:
@@ -304,13 +304,16 @@ async def scanner_page(request: Request):
 async def scanner_scan(request: Request):
     data = await request.json()
     query = data.get("query", "").strip()
-    app_id = int(data.get("app_id", 440))
+    try:
+        app_id = int(data.get("app_id", 440))
+    except (ValueError, TypeError):
+        return JSONResponse({"success": False, "results": [], "count": 0, "message": "Некорректный app_id"})
     if str(app_id) not in cfg.SUPPORTED_APPS:
         return JSONResponse({"success": False, "results": [], "count": 0,
-                             "message": f"Игра {app_id} не поддерживается. Доступны: TF2 (440), Dota 2 (570)"})
+                             "message": f"Игра {app_id} не поддерживается. Доступны: TF2 (440), Dota 2 (570), CS2 (730)"})
     min_price_usd = max(float(data.get("min_price_usd", 0.20)), cfg.DEFAULT_MIN_PRICE_USD)
     threshold_pct = max(float(data.get("threshold_pct", 17.0)), 5.0)
-    max_results = min(max(int(data.get("max_results", 30)), 1), 60)
+    max_results = min(max(int(data.get("max_results", 30)), 1), 500)
     min_weekly_sales = max(int(data.get("min_weekly_sales", 600)), 10)
     settings = db.get_all_settings()
     currency = int(settings.get("steam_currency", "5"))
@@ -346,6 +349,51 @@ async def scanner_scan(request: Request):
 async def get_api_logs_endpoint(limit: int = 200):
     logs = db.get_api_logs(limit)
     return JSONResponse({"success": True, "logs": logs})
+
+
+@app.get("/arbitrage", response_class=HTMLResponse)
+async def arbitrage_page(request: Request):
+    settings = db.get_all_settings()
+    currency_code = settings.get("steam_currency", "5")
+    currency_symbol = get_currency_symbol(currency_code)
+    return templates.TemplateResponse("arbitrage.html", {
+        "request": request,
+        "settings": settings,
+        "currency_symbol": currency_symbol,
+    })
+
+
+@app.post("/api/arbitrage/scan")
+async def arbitrage_scan(request: Request):
+    data = await request.json()
+    query = data.get("query", "").strip()
+    try:
+        app_id = int(data.get("app_id", 440))
+    except (ValueError, TypeError):
+        return JSONResponse({"success": False, "results": [], "count": 0, "message": "Некорректный app_id"})
+    if str(app_id) not in cfg.SUPPORTED_APPS:
+        return JSONResponse({"success": False, "results": [], "count": 0,
+                             "message": f"Игра {app_id} не поддерживается."})
+    try:
+        min_price_usd = max(float(data.get("min_price_usd", 0.03)), 0.03)
+    except (ValueError, TypeError):
+        min_price_usd = 0.03
+    settings = db.get_all_settings()
+    currency = int(settings.get("steam_currency", "5"))
+    try:
+        results = await mkt.scan_arbitrage(
+            query=query, app_id=app_id, currency=currency,
+            min_price_usd=min_price_usd
+        )
+        return JSONResponse({
+            "success": True,
+            "results": results,
+            "count": len(results),
+            "message": f"Найдено {len(results)} предметов с ордерами"
+        })
+    except Exception as e:
+        return JSONResponse({"success": False, "results": [], "count": 0,
+                             "message": f"Ошибка: {str(e)}"})
 
 
 if __name__ == "__main__":

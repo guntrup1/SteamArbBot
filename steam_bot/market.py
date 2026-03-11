@@ -532,8 +532,8 @@ async def scan_market(query: str, app_id: int = 440, currency: int = 1,
     7. Детекция аномалий/манипуляций
     8. Результат: предметы подходящие для ордеров
     """
-    PAGE_SIZE = 50
-    MAX_PAGES = 5
+    PAGE_SIZE = 100
+    MAX_PAGES = 100
     min_price_cents = int(min_price_usd * 100)
 
     raw_candidates = []
@@ -568,7 +568,7 @@ async def scan_market(query: str, app_id: int = 440, currency: int = 1,
                     "steam_url": f"https://steamcommunity.com/market/listings/{app_id}/{quote(hash_name, safe='')}",
                 })
 
-            if len(raw_candidates) >= max_results * 3 or start + PAGE_SIZE >= total:
+            if start + PAGE_SIZE >= total:
                 break
 
         seen = set()
@@ -577,8 +577,6 @@ async def scan_market(query: str, app_id: int = 440, currency: int = 1,
             if item["hash_name"] not in seen:
                 seen.add(item["hash_name"])
                 unique_candidates.append(item)
-
-        unique_candidates = unique_candidates[:max_results * 3]
 
         results = []
         fail_count = 0
@@ -677,6 +675,117 @@ async def scan_market(query: str, app_id: int = 440, currency: int = 1,
                 return (3, -x["weekly_sales"])
 
         results.sort(key=sort_key)
+        return results
+    finally:
+        await session.close()
+
+
+async def scan_arbitrage(query: str, app_id: int = 440, currency: int = 1,
+                          min_price_usd: float = 0.03) -> list:
+    PAGE_SIZE = 100
+    MAX_PAGES = 100
+    min_price_cents = int(min_price_usd * 100)
+
+    raw_items = []
+    consecutive_429 = 0
+    session = aiohttp.ClientSession()
+    try:
+        for page in range(MAX_PAGES):
+            start = page * PAGE_SIZE
+            search_results, total = await _fetch_search_page(session, app_id, query, start, PAGE_SIZE)
+            if not search_results:
+                consecutive_429 += 1
+                if consecutive_429 >= 2:
+                    break
+                continue
+            consecutive_429 = 0
+            for r in search_results:
+                sell_price = r.get("sell_price", 0)
+                if sell_price < min_price_cents:
+                    continue
+                hash_name = r.get("hash_name", r.get("name", ""))
+                asset_desc = r.get("asset_description", {})
+                icon_url = ""
+                if asset_desc.get("icon_url"):
+                    icon_url = f"https://community.akamai.steamstatic.com/economy/image/{asset_desc['icon_url']}/128x128"
+                raw_items.append({
+                    "name": r.get("name", ""),
+                    "hash_name": hash_name,
+                    "app_id": app_id,
+                    "sell_listings": r.get("sell_listings", 0),
+                    "sell_price_usd": sell_price / 100.0,
+                    "icon_url": icon_url,
+                    "steam_url": f"https://steamcommunity.com/market/listings/{app_id}/{quote(hash_name, safe='')}",
+                })
+
+            if start + PAGE_SIZE >= total:
+                break
+
+        seen = set()
+        unique_items = []
+        for item in raw_items:
+            if item["hash_name"] not in seen:
+                seen.add(item["hash_name"])
+                unique_items.append(item)
+
+        results = []
+        fail_count = 0
+
+        for item in unique_items:
+            page_data = await get_listing_page_data(session, app_id, item["hash_name"])
+            history = page_data.get("history", [])
+            item_nameid = page_data.get("item_nameid")
+
+            if not item_nameid:
+                fail_count += 1
+                if fail_count >= 10:
+                    break
+                continue
+            fail_count = 0
+
+            orders_info = await get_buy_orders(session, item_nameid, currency=1)
+
+            highest_buy = orders_info.get("highest_buy_order", 0) if orders_info.get("success") else 0
+            lowest_sell = orders_info.get("lowest_sell_order", 0) if orders_info.get("success") else 0
+
+            hist_info = analyze_price_history(history, days=7) if history else {}
+            weekly_sales = hist_info.get("weekly_sales", 0)
+            daily_sales = round(weekly_sales / 7, 1) if weekly_sales > 0 else 0
+            history_median = hist_info.get("history_median", 0)
+
+            if highest_buy <= 0:
+                continue
+
+            sell_after_commission = lowest_sell * (1 - STEAM_COMMISSION) if lowest_sell > 0 else 0
+            profit_vs_sell = sell_after_commission - highest_buy if sell_after_commission > 0 else 0
+            profit_pct_vs_sell = (profit_vs_sell / highest_buy * 100) if highest_buy > 0 else 0
+
+            median_after_commission = history_median * (1 - STEAM_COMMISSION) if history_median > 0 else 0
+            profit_vs_median = median_after_commission - highest_buy if median_after_commission > 0 else 0
+            profit_pct_vs_median = (profit_vs_median / highest_buy * 100) if highest_buy > 0 else 0
+
+            results.append({
+                "name": item["name"],
+                "hash_name": item["hash_name"],
+                "app_id": app_id,
+                "icon_url": item["icon_url"],
+                "steam_url": item["steam_url"],
+                "sell_listings": item["sell_listings"],
+                "market_price_usd": round(item["sell_price_usd"], 2),
+                "highest_buy_order": round(highest_buy, 2),
+                "lowest_sell_order": round(lowest_sell, 2),
+                "history_median": round(history_median, 2),
+                "weekly_sales": weekly_sales,
+                "daily_sales": daily_sales,
+                "sell_after_commission": round(sell_after_commission, 2),
+                "profit_vs_sell": round(profit_vs_sell, 2),
+                "profit_pct_vs_sell": round(profit_pct_vs_sell, 1),
+                "median_after_commission": round(median_after_commission, 2),
+                "profit_vs_median": round(profit_vs_median, 2),
+                "profit_pct_vs_median": round(profit_pct_vs_median, 1),
+            })
+
+        results.sort(key=lambda x: -x["profit_pct_vs_sell"])
         return results
     finally:
         await session.close()

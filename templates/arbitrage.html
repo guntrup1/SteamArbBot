@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Steam Market Bot — Арбитраж</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+.arb-row td { vertical-align:middle; border-bottom:1px solid var(--border); }
+.arb-row:hover { background:rgba(255,255,255,0.03); }
+.arb-row.profitable { background:rgba(63,185,80,0.04); }
+.arb-row.loss { background:rgba(248,81,73,0.02); }
+.profit-badge { padding:3px 10px; border-radius:12px; font-size:12px; font-weight:700; white-space:nowrap; display:inline-block; }
+.profit-badge.pos { background:rgba(63,185,80,0.15); color:var(--green); }
+.profit-badge.neg { background:rgba(248,81,73,0.1); color:var(--red); }
+.profit-badge.zero { background:rgba(139,148,158,0.1); color:var(--text-muted); }
+.auto-indicator { display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:600; }
+.auto-indicator.active { background:rgba(63,185,80,0.15); color:var(--green); border:1px solid rgba(63,185,80,0.3); }
+.auto-indicator.paused { background:rgba(210,153,34,0.15); color:var(--yellow); border:1px solid rgba(210,153,34,0.3); }
+.preset-grid { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+.preset-btn {
+  padding:5px 12px; border-radius:20px; border:1px solid var(--border);
+  background:var(--bg-card2); color:var(--text); cursor:pointer;
+  font-size:12px; transition:all .15s; white-space:nowrap;
+}
+.preset-btn:hover { border-color:var(--blue); color:var(--blue); }
+.preset-btn.active { background:var(--blue); color:#0d1117; border-color:var(--blue); font-weight:600; }
+.sort-btn { cursor:pointer; user-select:none; }
+.sort-btn:hover { color:var(--blue); }
+.sort-arrow { font-size:10px; margin-left:2px; }
+</style>
+</head>
+<body>
+
+<nav class="navbar">
+  <span class="navbar-brand">🤖 Steam Bot</span>
+  <div class="navbar-nav">
+    <a href="/" class="nav-link">📊 Dashboard</a>
+    <a href="/scanner" class="nav-link">🔍 Сканер</a>
+    <a href="/arbitrage" class="nav-link active">💹 Арбитраж</a>
+    <a href="/settings" class="nav-link">⚙️ Настройки</a>
+  </div>
+  <div class="navbar-right">
+    <span style="font-size:13px;color:var(--text-muted)">Валюта: {{ currency_symbol }}</span>
+  </div>
+</nav>
+
+<div class="container">
+
+  <div class="mb-16">
+    <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">💹 Арбитраж — Поиск прибыльных лотов</h2>
+    <p class="text-muted" style="font-size:13px">Анализ всех предметов категории в реальном времени. Показывает спред между авто-баем (ордер), медианной и рыночной ценой с учётом комиссии Steam (15%). Обновляется автоматически.</p>
+  </div>
+
+  <div class="card mb-16">
+    <div class="card-header">🎮 Выбор игры и категории</div>
+    <div class="card-body" style="padding-bottom:8px">
+
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600">TF2</div>
+      <div class="preset-grid">
+        <button class="preset-btn" onclick="setArb('Key', 440)">Ключи</button>
+        <button class="preset-btn" onclick="setArb('Strange', 440)">Strange</button>
+        <button class="preset-btn" onclick="setArb('Unusual', 440)">Unusual</button>
+        <button class="preset-btn" onclick="setArb('Killstreak', 440)">Killstreak</button>
+        <button class="preset-btn" onclick="setArb('Australium', 440)">Australium</button>
+        <button class="preset-btn" onclick="setArb('', 440)">TF2 все</button>
+      </div>
+
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600;margin-top:10px">Dota 2</div>
+      <div class="preset-grid">
+        <button class="preset-btn" onclick="setArb('Arcana', 570)">Arcana</button>
+        <button class="preset-btn" onclick="setArb('Immortal', 570)">Immortal</button>
+        <button class="preset-btn" onclick="setArb('Mythical', 570)">Mythical</button>
+        <button class="preset-btn" onclick="setArb('Courier', 570)">Курьеры</button>
+        <button class="preset-btn" onclick="setArb('', 570)">Dota 2 все</button>
+      </div>
+
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600;margin-top:10px">CS2</div>
+      <div class="preset-grid">
+        <button class="preset-btn" onclick="setArb('AK-47', 730)">AK-47</button>
+        <button class="preset-btn" onclick="setArb('AWP', 730)">AWP</button>
+        <button class="preset-btn" onclick="setArb('M4A1-S', 730)">M4A1-S</button>
+        <button class="preset-btn" onclick="setArb('Knife', 730)">Ножи</button>
+        <button class="preset-btn" onclick="setArb('Gloves', 730)">Перчатки</button>
+        <button class="preset-btn" onclick="setArb('Case', 730)">Кейсы</button>
+        <button class="preset-btn" onclick="setArb('Sticker', 730)">Наклейки</button>
+        <button class="preset-btn" onclick="setArb('StatTrak', 730)">StatTrak</button>
+        <button class="preset-btn" onclick="setArb('USP-S', 730)">USP-S</button>
+        <button class="preset-btn" onclick="setArb('Desert Eagle', 730)">Deagle</button>
+        <button class="preset-btn" onclick="setArb('Glock-18', 730)">Glock</button>
+        <button class="preset-btn" onclick="setArb('', 730)">CS2 все</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-16">
+    <div class="card-header">⚙️ Параметры</div>
+    <div class="card-body">
+      <div class="grid-2" style="gap:12px;margin-bottom:12px">
+        <div>
+          <label class="form-label">Поисковый запрос</label>
+          <input type="text" id="arb-query" class="form-control" placeholder="AK-47, Case, Sticker...">
+        </div>
+        <div>
+          <label class="form-label">Игра</label>
+          <select id="arb-appid" class="form-control">
+            <option value="440">Team Fortress 2</option>
+            <option value="570">Dota 2</option>
+            <option value="730" selected>Counter-Strike 2</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Мин. цена (USD)</label>
+          <input type="number" id="arb-min-price" class="form-control" min="0.03" step="0.01" value="0.10">
+        </div>
+        <div>
+          <label class="form-label">Авто-обновление (сек)</label>
+          <select id="arb-interval" class="form-control">
+            <option value="0">Выключено</option>
+            <option value="20">20 сек</option>
+            <option value="30" selected>30 сек</option>
+            <option value="40">40 сек</option>
+            <option value="60">60 сек</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid-2" style="gap:12px;margin-bottom:12px">
+        <div>
+          <label class="form-label">Мин. прибыль % (фильтр)</label>
+          <input type="number" id="arb-min-profit" class="form-control" min="-100" step="1" value="0" onchange="applyFilters()">
+        </div>
+        <div>
+          <label class="form-label">Мин. продаж/неделю (фильтр)</label>
+          <input type="number" id="arb-min-sales" class="form-control" min="0" step="10" value="0" onchange="applyFilters()">
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-blue" id="arb-btn" onclick="startArbitrage()" style="flex:1;font-size:14px">
+          💹 Сканировать
+        </button>
+        <button class="btn btn-ghost" id="arb-stop-btn" onclick="stopAutoRefresh()" style="display:none">
+          ⏹ Стоп
+        </button>
+      </div>
+
+      <div id="arb-progress" style="display:none;margin-top:12px">
+        <div style="background:var(--bg-card2);border-radius:6px;padding:12px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+            <span id="arb-status-text" class="text-muted" style="font-size:12px;display:flex;align-items:center;gap:8px">
+              <span class="spinner" style="width:14px;height:14px;border-width:2px"></span>
+              Загрузка...
+            </span>
+            <span id="arb-elapsed" class="text-muted" style="font-size:12px"></span>
+          </div>
+          <div style="background:var(--border);border-radius:4px;height:5px;overflow:hidden">
+            <div id="arb-progress-bar" style="background:linear-gradient(90deg,var(--blue),var(--purple));height:100%;width:5%;transition:width 0.5s"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="arb-results-section" style="display:none" class="mb-16">
+    <div class="card">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span>💹 Результаты арбитража</span>
+          <span id="arb-summary" style="font-size:12px;color:var(--text-muted)"></span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div id="auto-status"></div>
+          <span id="arb-last-update" style="font-size:11px;color:var(--text-muted)"></span>
+          <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px" onclick="startArbitrage()">↻ Обновить</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px" id="arb-table">
+          <thead>
+            <tr style="background:var(--bg-card2)">
+              <th style="padding:10px 8px;text-align:left;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)"></th>
+              <th style="padding:10px 8px;text-align:left;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">ПРЕДМЕТ</th>
+              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border);cursor:pointer" onclick="sortBy('highest_buy_order')" class="sort-btn">АВТО-БАЙ <span class="sort-arrow" id="sort-highest_buy_order"></span></th>
+              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border);cursor:pointer" onclick="sortBy('history_median')" class="sort-btn">МЕДИАНА <span class="sort-arrow" id="sort-history_median"></span></th>
+              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border);cursor:pointer" onclick="sortBy('lowest_sell_order')" class="sort-btn">РЫНОК <span class="sort-arrow" id="sort-lowest_sell_order"></span></th>
+              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border);cursor:pointer" onclick="sortBy('profit_pct_vs_sell')" class="sort-btn">ПРИБЫЛЬ (рынок) <span class="sort-arrow" id="sort-profit_pct_vs_sell"></span></th>
+              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border);cursor:pointer" onclick="sortBy('profit_pct_vs_median')" class="sort-btn">ПРИБЫЛЬ (медиана) <span class="sort-arrow" id="sort-profit_pct_vs_median"></span></th>
+              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border);cursor:pointer" onclick="sortBy('daily_sales')" class="sort-btn">ПРОДАЖ/ДЕНЬ <span class="sort-arrow" id="sort-daily_sales"></span></th>
+              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border);cursor:pointer" onclick="sortBy('weekly_sales')" class="sort-btn">ПРОДАЖ/НЕД <span class="sort-arrow" id="sort-weekly_sales"></span></th>
+              <th style="padding:10px 8px;border-bottom:2px solid var(--border)"></th>
+            </tr>
+          </thead>
+          <tbody id="arb-tbody"></tbody>
+        </table>
+        <div id="arb-no-results" style="display:none;padding:40px;text-align:center;color:var(--text-muted)">
+          <div style="font-size:36px;margin-bottom:8px">🔎</div>
+          <div style="font-weight:600;margin-bottom:4px">Ничего не найдено</div>
+          <div style="font-size:12px">Попробуйте другой запрос или уменьшите фильтры</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast-container" style="position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px"></div>
+
+<script>
+let _arbResults = [];
+let _arbFiltered = [];
+let _arbStart = 0;
+let _elapsedTimer = null;
+let _autoRefreshTimer = null;
+let _isScanning = false;
+let _sortField = 'profit_pct_vs_sell';
+let _sortDir = -1;
+
+function showToast(msg, type = 'info') {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  const span = document.createElement('span');
+  span.style.flex = '1';
+  span.textContent = msg;
+  toast.appendChild(span);
+  if (type === 'error' || type === 'warning') {
+    const closeBtn = document.createElement('span');
+    closeBtn.textContent = '\u2715';
+    closeBtn.style.cssText = 'cursor:pointer;margin-left:8px;opacity:0.7;font-size:14px';
+    closeBtn.onclick = () => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 200); };
+    toast.appendChild(closeBtn);
+  }
+  container.appendChild(toast);
+  const dur = (type === 'error' || type === 'warning') ? 10000 : 4000;
+  setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity .3s'; setTimeout(() => toast.remove(), 300); }, dur);
+}
+
+function setArb(query, appId) {
+  document.getElementById('arb-query').value = query;
+  document.getElementById('arb-appid').value = appId;
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  if (window.event && window.event.target) window.event.target.classList.add('active');
+}
+
+function stopAutoRefresh() {
+  if (_autoRefreshTimer) {
+    clearInterval(_autoRefreshTimer);
+    _autoRefreshTimer = null;
+  }
+  updateAutoStatus();
+  document.getElementById('arb-stop-btn').style.display = 'none';
+}
+
+function updateAutoStatus() {
+  const el = document.getElementById('auto-status');
+  if (_autoRefreshTimer) {
+    const interval = parseInt(document.getElementById('arb-interval').value);
+    el.innerHTML = `<span class="auto-indicator active"><span class="dot green"></span> Авто ${interval}с</span>`;
+  } else {
+    el.innerHTML = `<span class="auto-indicator paused"><span class="dot gray"></span> Пауза</span>`;
+  }
+}
+
+async function startArbitrage() {
+  if (_isScanning) return;
+  _isScanning = true;
+
+  const btn = document.getElementById('arb-btn');
+  const progress = document.getElementById('arb-progress');
+  const statusText = document.getElementById('arb-status-text');
+  const progressBar = document.getElementById('arb-progress-bar');
+  const elapsed = document.getElementById('arb-elapsed');
+
+  const query = document.getElementById('arb-query').value.trim();
+  const appId = parseInt(document.getElementById('arb-appid').value);
+  const minPrice = parseFloat(document.getElementById('arb-min-price').value) || 0.10;
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px"></span> Сканирование...';
+  progress.style.display = 'block';
+  progressBar.style.width = '5%';
+
+  _arbStart = Date.now();
+  if (_elapsedTimer) clearInterval(_elapsedTimer);
+  _elapsedTimer = setInterval(() => {
+    const sec = Math.floor((Date.now() - _arbStart) / 1000);
+    elapsed.textContent = `${sec}s`;
+    const pct = Math.min(5 + (sec / 120) * 90, 95);
+    progressBar.style.width = pct + '%';
+    const msgs = [
+      [0, '🔍 Поиск предметов...'],
+      [5, '📋 Загрузка ордеров и истории...'],
+      [15, '📊 Анализ спредов...'],
+      [40, '💹 Расчёт прибыльности...'],
+    ];
+    const msg = [...msgs].reverse().find(([s]) => sec >= s);
+    statusText.innerHTML = `<span class="spinner" style="width:14px;height:14px;border-width:2px"></span> ${msg ? msg[1] : 'Сканирование...'}`;
+  }, 1000);
+
+  try {
+    const res = await fetch('/api/arbitrage/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, app_id: appId, min_price_usd: minPrice })
+    });
+    const data = await res.json();
+
+    clearInterval(_elapsedTimer);
+    progressBar.style.width = '100%';
+    const totalSec = ((Date.now() - _arbStart) / 1000).toFixed(1);
+    statusText.innerHTML = `✅ Готово за ${totalSec}s — ${data.count || 0} предметов`;
+
+    if (data.success) {
+      _arbResults = data.results || [];
+      applyFilters();
+      const profitable = _arbResults.filter(r => r.profit_pct_vs_sell > 0).length;
+      showToast(`Найдено ${_arbResults.length} предметов, ${profitable} прибыльных`, profitable > 0 ? 'success' : 'warning');
+      document.getElementById('arb-last-update').textContent = 'Обновлено: ' + new Date().toLocaleTimeString('ru-RU');
+
+      const interval = parseInt(document.getElementById('arb-interval').value);
+      if (interval > 0) {
+        if (_autoRefreshTimer) clearInterval(_autoRefreshTimer);
+        _autoRefreshTimer = setInterval(() => startArbitrage(), interval * 1000);
+        document.getElementById('arb-stop-btn').style.display = '';
+      }
+      updateAutoStatus();
+    } else {
+      showToast(data.message || 'Ошибка', 'error');
+    }
+  } catch (e) {
+    clearInterval(_elapsedTimer);
+    statusText.innerHTML = `❌ Ошибка: ${e.message}`;
+    showToast('Ошибка: ' + e.message, 'error');
+  } finally {
+    setTimeout(() => { progress.style.display = 'none'; progressBar.style.width = '5%'; }, 3000);
+    btn.disabled = false;
+    btn.innerHTML = '💹 Сканировать';
+    _isScanning = false;
+  }
+}
+
+function sortBy(field) {
+  if (_sortField === field) {
+    _sortDir = -_sortDir;
+  } else {
+    _sortField = field;
+    _sortDir = -1;
+  }
+  document.querySelectorAll('.sort-arrow').forEach(el => el.textContent = '');
+  const arrow = document.getElementById('sort-' + field);
+  if (arrow) arrow.textContent = _sortDir > 0 ? '▲' : '▼';
+  applyFilters();
+}
+
+function applyFilters() {
+  const minProfit = parseFloat(document.getElementById('arb-min-profit').value) || 0;
+  const minSales = parseInt(document.getElementById('arb-min-sales').value) || 0;
+
+  _arbFiltered = _arbResults.filter(r => {
+    if (r.profit_pct_vs_sell < minProfit && r.profit_pct_vs_median < minProfit) return false;
+    if (r.weekly_sales < minSales) return false;
+    return true;
+  });
+
+  _arbFiltered.sort((a, b) => {
+    const av = a[_sortField] || 0;
+    const bv = b[_sortField] || 0;
+    return (av - bv) * _sortDir;
+  });
+
+  renderArbResults(_arbFiltered);
+}
+
+function renderArbResults(results) {
+  const section = document.getElementById('arb-results-section');
+  const tbody = document.getElementById('arb-tbody');
+  const noResults = document.getElementById('arb-no-results');
+  const summary = document.getElementById('arb-summary');
+  section.style.display = 'block';
+
+  const profitable = results.filter(r => r.profit_pct_vs_sell > 0).length;
+  const highProfit = results.filter(r => r.profit_pct_vs_sell >= 5).length;
+  summary.textContent = `${results.length} предметов · ${profitable} прибыльных · ${highProfit} с прибылью >= 5%`;
+
+  if (results.length === 0) {
+    tbody.innerHTML = '';
+    noResults.style.display = 'block';
+    return;
+  }
+  noResults.style.display = 'none';
+
+  tbody.innerHTML = results.map((item, idx) => {
+    const profitSellClass = item.profit_pct_vs_sell > 0 ? 'pos' : item.profit_pct_vs_sell < 0 ? 'neg' : 'zero';
+    const profitMedClass = item.profit_pct_vs_median > 0 ? 'pos' : item.profit_pct_vs_median < 0 ? 'neg' : 'zero';
+    const rowClass = `arb-row${item.profit_pct_vs_sell >= 5 ? ' profitable' : item.profit_pct_vs_sell < 0 ? ' loss' : ''}`;
+    const salesColor = item.weekly_sales >= 100 ? 'var(--green)' : item.weekly_sales >= 30 ? 'var(--yellow)' : 'var(--text-muted)';
+
+    const imgHtml = item.icon_url
+      ? `<img src="${escHtml(item.icon_url)}" style="width:36px;height:36px;object-fit:contain;border-radius:4px" onerror="this.style.display='none'">`
+      : `<div style="width:36px;height:36px;background:var(--bg-card2);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:16px">🔷</div>`;
+
+    return `<tr class="${rowClass}">
+      <td style="padding:8px">${imgHtml}</td>
+      <td style="padding:8px 6px;max-width:250px">
+        <div style="font-weight:600;font-size:12px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(item.name)}">${escHtml(item.name)}</div>
+        <div style="font-size:11px;color:var(--text-muted)">Лотов: ${item.sell_listings}</div>
+      </td>
+      <td style="padding:8px 6px;text-align:center;font-weight:700;white-space:nowrap;color:var(--blue)">${item.highest_buy_order > 0 ? '$' + item.highest_buy_order.toFixed(2) : '—'}</td>
+      <td style="padding:8px 6px;text-align:center;font-weight:600;white-space:nowrap;color:var(--purple)">${item.history_median > 0 ? '$' + item.history_median.toFixed(2) : '—'}</td>
+      <td style="padding:8px 6px;text-align:center;font-weight:600;white-space:nowrap">${item.lowest_sell_order > 0 ? '$' + item.lowest_sell_order.toFixed(2) : '—'}</td>
+      <td style="padding:8px 6px;text-align:center">
+        <span class="profit-badge ${profitSellClass}">
+          ${item.profit_pct_vs_sell > 0 ? '+' : ''}${item.profit_pct_vs_sell.toFixed(1)}%
+        </span>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:2px">${item.profit_vs_sell > 0 ? '+' : ''}$${item.profit_vs_sell.toFixed(2)}</div>
+      </td>
+      <td style="padding:8px 6px;text-align:center">
+        <span class="profit-badge ${profitMedClass}">
+          ${item.profit_pct_vs_median > 0 ? '+' : ''}${item.profit_pct_vs_median.toFixed(1)}%
+        </span>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:2px">${item.profit_vs_median > 0 ? '+' : ''}$${item.profit_vs_median.toFixed(2)}</div>
+      </td>
+      <td style="padding:8px 6px;text-align:center;font-weight:600;color:${salesColor}">${item.daily_sales}</td>
+      <td style="padding:8px 6px;text-align:center;font-weight:600;color:${salesColor}">${item.weekly_sales}</td>
+      <td style="padding:8px 6px;white-space:nowrap">
+        <a href="${escHtml(item.steam_url)}" target="_blank" class="btn btn-ghost" style="padding:4px 8px;font-size:11px">🔗 Steam</a>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function escHtml(str) {
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+document.getElementById('arb-min-profit').addEventListener('input', applyFilters);
+document.getElementById('arb-min-sales').addEventListener('input', applyFilters);
+</script>
+</body>
+</html>

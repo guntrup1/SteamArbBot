@@ -25,10 +25,12 @@ MIN_WEEKLY_SALES = 600
 
 APP_ID_TF2 = 440
 APP_ID_DOTA2 = 570
+APP_ID_CS2 = 730
 
 SUPPORTED_APPS = {
     "440": "Team Fortress 2",
     "570": "Dota 2",
+    "730": "Counter-Strike 2",
 }
 
 STEAM_MARKET_BASE = "https://steamcommunity.com/market"
