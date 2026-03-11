@@ -4,9 +4,12 @@ __pycache__/
 .env
 .replit
 replit.nix
+replit_zip_error_log.txt
 .local/
 .cache/
 .upm/
 .pythonlibs/
 uv.lock
 *.db
+.config/
+generated-config.*
