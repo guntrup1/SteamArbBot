@@ -31,6 +31,15 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 
+@app.get("/health")
+async def health_check():
+    try:
+        db._get_db().command("ping")
+        return JSONResponse({"status": "ok", "db": "connected"})
+    except Exception as e:
+        return JSONResponse({"status": "error", "db": str(e)}, status_code=503)
+
+
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
     settings = db.get_all_settings()

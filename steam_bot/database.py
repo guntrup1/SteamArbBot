@@ -1,8 +1,11 @@
 import os
 import json
+import logging
 from datetime import datetime, date, timedelta
 from bson import ObjectId
 from pymongo import MongoClient, ASCENDING, DESCENDING
+
+_logger = logging.getLogger(__name__)
 
 MONGO_URL = os.environ.get("MONGO_URL", "")
 MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "steam_bot")
@@ -14,7 +17,14 @@ _db = None
 def _get_db():
     global _client, _db
     if _db is None:
-        _client = MongoClient(MONGO_URL)
+        if not MONGO_URL:
+            raise RuntimeError("MONGO_URL environment variable is not set")
+        _client = MongoClient(
+            MONGO_URL,
+            serverSelectionTimeoutMS=10000,
+            connectTimeoutMS=10000,
+            socketTimeoutMS=20000,
+        )
         _db = _client[MONGO_DB_NAME]
     return _db
 
@@ -49,18 +59,22 @@ def _next_id(collection_name: str) -> int:
 
 
 def init_db():
-    db = _get_db()
-
-    db.items.create_index([("app_id", ASCENDING), ("market_hash_name", ASCENDING)], unique=True)
-    db.items.create_index([("enabled", ASCENDING), ("name", ASCENDING)])
-    db.trades.create_index([("created_at", DESCENDING)])
-    db.trades.create_index([("test_mode", ASCENDING), ("status", ASCENDING)])
-    db.logs.create_index([("created_at", DESCENDING)])
-    db.api_logs.create_index([("created_at", DESCENDING)])
-    db.settings.create_index([("key", ASCENDING)], unique=True)
-    db.favorites.create_index([("app_id", ASCENDING), ("market_hash_name", ASCENDING)], unique=True)
-    db.favorites.create_index([("created_at", DESCENDING)])
-    db.portfolio_history.create_index([("created_at", DESCENDING)])
+    try:
+        db = _get_db()
+        db.items.create_index([("app_id", ASCENDING), ("market_hash_name", ASCENDING)], unique=True)
+        db.items.create_index([("enabled", ASCENDING), ("name", ASCENDING)])
+        db.trades.create_index([("created_at", DESCENDING)])
+        db.trades.create_index([("test_mode", ASCENDING), ("status", ASCENDING)])
+        db.logs.create_index([("created_at", DESCENDING)])
+        db.api_logs.create_index([("created_at", DESCENDING)])
+        db.settings.create_index([("key", ASCENDING)], unique=True)
+        db.favorites.create_index([("app_id", ASCENDING), ("market_hash_name", ASCENDING)], unique=True)
+        db.favorites.create_index([("created_at", DESCENDING)])
+        db.portfolio_history.create_index([("created_at", DESCENDING)])
+        _logger.info("MongoDB connected successfully")
+    except Exception as e:
+        _logger.error(f"MongoDB init error: {e}")
+        raise
 
     defaults = {
         "steam_api_key": "",
