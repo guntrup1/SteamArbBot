@@ -1,108 +1,63 @@
 import os
-import psycopg2
-import psycopg2.extras
-from datetime import datetime, date
+import json
+from datetime import datetime, date, timedelta
+from bson import ObjectId
+from pymongo import MongoClient, ASCENDING, DESCENDING
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "")
+MONGO_URL = os.environ.get("MONGO_URL", "")
+MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "steam_bot")
 
-
-def get_connection():
-    url = DATABASE_URL
-    if url and "sslmode" not in url:
-        sep = "&" if "?" in url else "?"
-        url += f"{sep}sslmode=require"
-    conn = psycopg2.connect(url)
-    return conn
+_client = None
+_db = None
 
 
-def _serialize(row: dict) -> dict:
-    """Convert datetime/date objects to ISO strings so templates can slice them."""
+def _get_db():
+    global _client, _db
+    if _db is None:
+        _client = MongoClient(MONGO_URL)
+        _db = _client[MONGO_DB_NAME]
+    return _db
+
+
+def _serialize(doc: dict) -> dict:
     result = {}
-    for k, v in row.items():
-        if isinstance(v, datetime):
+    for k, v in doc.items():
+        if k == "_id":
+            result["id"] = str(v)
+        elif isinstance(v, ObjectId):
+            result[k] = str(v)
+        elif isinstance(v, datetime):
             result[k] = v.isoformat()
         elif isinstance(v, date):
             result[k] = v.isoformat()
         else:
             result[k] = v
+    if "id" not in result and "_id" not in doc:
+        result["id"] = ""
     return result
 
 
+def _next_id(collection_name: str) -> int:
+    db = _get_db()
+    counter = db.counters.find_one_and_update(
+        {"_id": collection_name},
+        {"$inc": {"seq": 1}},
+        upsert=True,
+        return_document=True
+    )
+    return counter["seq"]
+
+
 def init_db():
-    conn = get_connection()
-    c = conn.cursor()
+    db = _get_db()
 
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS items (
-            id SERIAL PRIMARY KEY,
-            name TEXT NOT NULL,
-            market_hash_name TEXT NOT NULL,
-            app_id INTEGER DEFAULT 440,
-            enabled INTEGER DEFAULT 1,
-            steam_url TEXT,
-            image_url TEXT,
-            added_at TIMESTAMP DEFAULT NOW(),
-            UNIQUE(app_id, market_hash_name)
-        )
-    """)
-
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS trades (
-            id SERIAL PRIMARY KEY,
-            item_name TEXT NOT NULL,
-            market_hash_name TEXT NOT NULL,
-            trade_type TEXT NOT NULL,
-            buy_price REAL,
-            sell_price REAL,
-            market_price REAL,
-            profit REAL,
-            profit_after_fee REAL,
-            status TEXT DEFAULT 'pending',
-            test_mode INTEGER DEFAULT 0,
-            created_at TIMESTAMP DEFAULT NOW(),
-            completed_at TIMESTAMP
-        )
-    """)
-
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS logs (
-            id SERIAL PRIMARY KEY,
-            level TEXT DEFAULT 'info',
-            message TEXT NOT NULL,
-            item_name TEXT,
-            mode TEXT DEFAULT 'TEST',
-            stage TEXT,
-            created_at TIMESTAMP DEFAULT NOW()
-        )
-    """)
-
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS settings (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL
-        )
-    """)
-
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS balance_history (
-            id SERIAL PRIMARY KEY,
-            balance REAL NOT NULL,
-            mode TEXT DEFAULT 'TEST',
-            created_at TIMESTAMP DEFAULT NOW()
-        )
-    """)
-
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS api_logs (
-            id SERIAL PRIMARY KEY,
-            endpoint TEXT NOT NULL,
-            params TEXT,
-            status_code INTEGER,
-            response TEXT,
-            error TEXT,
-            created_at TIMESTAMP DEFAULT NOW()
-        )
-    """)
+    db.items.create_index([("app_id", ASCENDING), ("market_hash_name", ASCENDING)], unique=True)
+    db.items.create_index([("enabled", ASCENDING), ("name", ASCENDING)])
+    db.trades.create_index([("created_at", DESCENDING)])
+    db.trades.create_index([("test_mode", ASCENDING), ("status", ASCENDING)])
+    db.logs.create_index([("_id", DESCENDING)])
+    db.api_logs.create_index([("_id", DESCENDING)])
+    db.settings.create_index([("key", ASCENDING)], unique=True)
 
     defaults = {
         "steam_api_key": "",
@@ -125,187 +80,197 @@ def init_db():
     }
 
     for key, value in defaults.items():
-        c.execute(
-            "INSERT INTO settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING",
-            (key, value)
+        db.settings.update_one(
+            {"key": key},
+            {"$setOnInsert": {"key": key, "value": value}},
+            upsert=True
         )
-
-    conn.commit()
-    conn.close()
 
 
 def get_setting(key, default=None):
-    conn = get_connection()
-    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    c.execute("SELECT value FROM settings WHERE key = %s", (key,))
-    row = c.fetchone()
-    conn.close()
-    return row["value"] if row else default
+    db = _get_db()
+    doc = db.settings.find_one({"key": key})
+    return doc["value"] if doc else default
 
 
 def set_setting(key, value):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
-        (key, str(value))
+    db = _get_db()
+    db.settings.update_one(
+        {"key": key},
+        {"$set": {"key": key, "value": str(value)}},
+        upsert=True
     )
-    conn.commit()
-    conn.close()
 
 
 def get_all_settings():
-    conn = get_connection()
-    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    c.execute("SELECT key, value FROM settings")
-    rows = c.fetchall()
-    conn.close()
-    return {row["key"]: row["value"] for row in rows}
+    db = _get_db()
+    docs = db.settings.find()
+    return {doc["key"]: doc["value"] for doc in docs}
 
 
 def get_items():
-    conn = get_connection()
-    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    c.execute("SELECT * FROM items WHERE enabled = 1 ORDER BY name")
-    rows = c.fetchall()
-    conn.close()
-    return [_serialize(dict(row)) for row in rows]
+    db = _get_db()
+    docs = db.items.find({"enabled": 1}).sort("name", ASCENDING)
+    results = []
+    for doc in docs:
+        item = _serialize(doc)
+        item["id"] = doc.get("item_id", 0)
+        results.append(item)
+    return results
 
 
 def add_item(name, market_hash_name, app_id=440, steam_url=None, image_url=None):
-    conn = get_connection()
-    c = conn.cursor()
+    db = _get_db()
     url = steam_url or f"https://steamcommunity.com/market/listings/{app_id}/{market_hash_name.replace(' ', '%20')}"
-    try:
-        c.execute(
-            "INSERT INTO items (name, market_hash_name, app_id, steam_url, image_url) VALUES (%s, %s, %s, %s, %s)",
-            (name, market_hash_name, app_id, url, image_url)
+    existing = db.items.find_one({"app_id": app_id, "market_hash_name": market_hash_name})
+    if existing:
+        db.items.update_one(
+            {"_id": existing["_id"]},
+            {"$set": {"enabled": 1}}
         )
-        conn.commit()
-        return True, "Предмет добавлен"
-    except psycopg2.IntegrityError:
-        conn.rollback()
-        c.execute("UPDATE items SET enabled=1 WHERE market_hash_name=%s AND app_id=%s", (market_hash_name, app_id))
-        conn.commit()
         return True, "Предмет уже существует, активирован"
-    finally:
-        conn.close()
+    item_id = _next_id("items")
+    db.items.insert_one({
+        "item_id": item_id,
+        "name": name,
+        "market_hash_name": market_hash_name,
+        "app_id": app_id,
+        "enabled": 1,
+        "steam_url": url,
+        "image_url": image_url,
+        "added_at": datetime.now(),
+    })
+    return True, "Предмет добавлен"
 
 
 def remove_item(item_id):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("UPDATE items SET enabled=0 WHERE id=%s", (item_id,))
-    conn.commit()
-    conn.close()
+    db = _get_db()
+    try:
+        numeric_id = int(item_id)
+        result = db.items.update_one({"item_id": numeric_id}, {"$set": {"enabled": 0}})
+        if result.modified_count == 0:
+            db.items.update_one({"_id": ObjectId(str(item_id))}, {"$set": {"enabled": 0}})
+    except (ValueError, TypeError):
+        db.items.update_one({"_id": ObjectId(str(item_id))}, {"$set": {"enabled": 0}})
 
 
 def add_log(message, level="info", item_name=None, mode="TEST", stage=None):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO logs (level, message, item_name, mode, stage) VALUES (%s, %s, %s, %s, %s)",
-        (level, message, item_name, mode, stage)
-    )
-    conn.commit()
-    conn.close()
+    db = _get_db()
+    db.logs.insert_one({
+        "level": level,
+        "message": message,
+        "item_name": item_name,
+        "mode": mode,
+        "stage": stage,
+        "created_at": datetime.now(),
+    })
 
 
 def get_logs(limit=100):
-    conn = get_connection()
-    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    c.execute("SELECT * FROM (SELECT * FROM logs ORDER BY id DESC LIMIT %s) sub ORDER BY id ASC", (limit,))
-    rows = c.fetchall()
-    conn.close()
-    return [_serialize(dict(row)) for row in rows]
+    db = _get_db()
+    docs = list(db.logs.find().sort("_id", DESCENDING).limit(limit))
+    docs.reverse()
+    return [_serialize(doc) for doc in docs]
 
 
 def add_trade(item_name, market_hash_name, trade_type, buy_price=None, sell_price=None,
               market_price=None, profit=None, profit_after_fee=None, status="completed", test_mode=True):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        """INSERT INTO trades
-           (item_name, market_hash_name, trade_type, buy_price, sell_price,
-            market_price, profit, profit_after_fee, status, test_mode, completed_at)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-        (item_name, market_hash_name, trade_type, buy_price, sell_price,
-         market_price, profit, profit_after_fee, status, 1 if test_mode else 0,
-         datetime.now())
-    )
-    conn.commit()
-    conn.close()
+    db = _get_db()
+    db.trades.insert_one({
+        "item_name": item_name,
+        "market_hash_name": market_hash_name,
+        "trade_type": trade_type,
+        "buy_price": buy_price,
+        "sell_price": sell_price,
+        "market_price": market_price,
+        "profit": profit,
+        "profit_after_fee": profit_after_fee,
+        "status": status,
+        "test_mode": 1 if test_mode else 0,
+        "created_at": datetime.now(),
+        "completed_at": datetime.now() if status == "completed" else None,
+    })
 
 
 def get_trades(limit=50, test_mode=None):
-    conn = get_connection()
-    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    if test_mode is None:
-        c.execute("SELECT * FROM trades ORDER BY id DESC LIMIT %s", (limit,))
-    else:
-        c.execute("SELECT * FROM trades WHERE test_mode=%s ORDER BY id DESC LIMIT %s",
-                  (1 if test_mode else 0, limit))
-    rows = c.fetchall()
-    conn.close()
-    return [_serialize(dict(row)) for row in rows]
+    db = _get_db()
+    query = {}
+    if test_mode is not None:
+        query["test_mode"] = 1 if test_mode else 0
+    docs = db.trades.find(query).sort("_id", DESCENDING).limit(limit)
+    return [_serialize(doc) for doc in docs]
 
 
 def get_statistics(test_mode=None):
-    conn = get_connection()
-    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    db = _get_db()
+    match = {"status": "completed"}
+    if test_mode is not None:
+        match["test_mode"] = 1 if test_mode else 0
 
-    today = datetime.now().date()
+    today_start = datetime.combine(datetime.now().date(), datetime.min.time())
+    today_end = today_start + timedelta(days=1)
 
-    if test_mode is None:
-        c.execute("""SELECT
-            COUNT(*) as total_trades,
-            SUM(CASE WHEN trade_type='buy' THEN 1 ELSE 0 END) as total_buys,
-            SUM(CASE WHEN trade_type='sell' THEN 1 ELSE 0 END) as total_sells,
-            SUM(CASE WHEN trade_type='sell' THEN profit_after_fee ELSE 0 END) as total_profit,
-            SUM(CASE WHEN trade_type='sell' AND DATE(created_at) = %s THEN profit_after_fee ELSE 0 END) as daily_profit
-            FROM trades WHERE status='completed'""",
-            (today,)
-        )
-    else:
-        c.execute("""SELECT
-            COUNT(*) as total_trades,
-            SUM(CASE WHEN trade_type='buy' THEN 1 ELSE 0 END) as total_buys,
-            SUM(CASE WHEN trade_type='sell' THEN 1 ELSE 0 END) as total_sells,
-            SUM(CASE WHEN trade_type='sell' THEN profit_after_fee ELSE 0 END) as total_profit,
-            SUM(CASE WHEN trade_type='sell' AND DATE(created_at) = %s THEN profit_after_fee ELSE 0 END) as daily_profit
-            FROM trades WHERE status='completed' AND test_mode=%s""",
-            (today, 1 if test_mode else 0)
-        )
-    row = c.fetchone()
-    conn.close()
-    return dict(row) if row else {}
+    pipeline = [
+        {"$match": match},
+        {"$group": {
+            "_id": None,
+            "total_trades": {"$sum": 1},
+            "total_buys": {"$sum": {"$cond": [{"$eq": ["$trade_type", "buy"]}, 1, 0]}},
+            "total_sells": {"$sum": {"$cond": [{"$eq": ["$trade_type", "sell"]}, 1, 0]}},
+            "total_profit": {"$sum": {
+                "$cond": [{"$eq": ["$trade_type", "sell"]}, {"$ifNull": ["$profit_after_fee", 0]}, 0]
+            }},
+            "daily_profit": {"$sum": {
+                "$cond": [
+                    {"$and": [
+                        {"$eq": ["$trade_type", "sell"]},
+                        {"$gte": ["$created_at", today_start]},
+                        {"$lt": ["$created_at", today_end]},
+                    ]},
+                    {"$ifNull": ["$profit_after_fee", 0]},
+                    0
+                ]
+            }},
+        }}
+    ]
+
+    result = list(db.trades.aggregate(pipeline))
+    if result:
+        r = result[0]
+        del r["_id"]
+        return r
+    return {
+        "total_trades": 0,
+        "total_buys": 0,
+        "total_sells": 0,
+        "total_profit": 0,
+        "daily_profit": 0,
+    }
 
 
 def add_balance_history(balance, mode):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("INSERT INTO balance_history (balance, mode) VALUES (%s, %s)", (balance, mode))
-    conn.commit()
-    conn.close()
+    db = _get_db()
+    db.balance_history.insert_one({
+        "balance": balance,
+        "mode": mode,
+        "created_at": datetime.now(),
+    })
 
 
 def add_api_log(endpoint: str, params: dict, status: int, response: dict, error: str = None):
-    conn = get_connection()
-    c = conn.cursor()
-    import json as _json
-    c.execute(
-        "INSERT INTO api_logs (endpoint, params, status_code, response, error) VALUES (%s, %s, %s, %s, %s)",
-        (endpoint, _json.dumps(params, ensure_ascii=False), status,
-         _json.dumps(response, ensure_ascii=False) if response else None, error)
-    )
-    conn.commit()
-    conn.close()
+    db = _get_db()
+    db.api_logs.insert_one({
+        "endpoint": endpoint,
+        "params": json.dumps(params, ensure_ascii=False) if params else "{}",
+        "status_code": status,
+        "response": json.dumps(response, ensure_ascii=False) if response else None,
+        "error": error,
+        "created_at": datetime.now(),
+    })
 
 
 def get_api_logs(limit=200):
-    conn = get_connection()
-    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    c.execute("SELECT * FROM (SELECT * FROM api_logs ORDER BY id DESC LIMIT %s) sub ORDER BY id ASC", (limit,))
-    rows = c.fetchall()
-    conn.close()
-    return [_serialize(dict(row)) for row in rows]
+    db = _get_db()
+    docs = list(db.api_logs.find().sort("_id", DESCENDING).limit(limit))
+    docs.reverse()
+    return [_serialize(doc) for doc in docs]

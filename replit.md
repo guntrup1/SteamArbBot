@@ -20,15 +20,15 @@ The bot scans Steam Market for liquid items (600+ sales/week), compares buy orde
 - **LIVE mode** — real Steam balance, real buy/sell transactions (requires Steam Guard)
 - **Real-time WebSocket logs** — live trading log stream to the dashboard
 - **Telegram notifications** — buy/sell/error alerts in both TEST and LIVE modes
-- **PostgreSQL persistence** — items, trades, logs, settings, balance history
+- **MongoDB persistence** — items, trades, logs, settings, balance history
 - **Persistent Error Log** — errors/warnings stay visible for 15 seconds with close button + collapsible error log panel (bottom-left) with full history
-- **API Logs** — all Steam API requests/responses logged to PostgreSQL
+- **API Logs** — all Steam API requests/responses logged to MongoDB
 
 ## Tech Stack
 
 - **Backend**: Python 3.11, FastAPI, Uvicorn, aiohttp
 - **Frontend**: Vanilla JS, WebSocket, dark theme CSS
-- **Database**: PostgreSQL via `psycopg2-binary` (DATABASE_URL env var)
+- **Database**: MongoDB via `pymongo[srv]` (MONGO_URL env var, MONGO_DB_NAME defaults to `steam_bot`)
 - **Notifications**: aiohttp direct Telegram Bot API
 - **Port**: 5000
 
@@ -39,7 +39,7 @@ main.py                  # FastAPI app, all routes, WebSocket, bot start validat
 steam_bot/
   __init__.py
   config.py              # Constants: commission (15%), thresholds, URLs, app IDs (440, 570, 730)
-  database.py            # PostgreSQL helpers: settings, items, trades, logs, api_logs
+  database.py            # MongoDB helpers: settings, items, trades, logs, api_logs
   market.py              # Steam Market API: scan_market, scan_arbitrage, buy orders, anomaly detection, history analysis
   trading.py             # Bot loop, buy/sell logic, WS broadcast, mode mgmt
   telegram_bot.py        # Telegram formatters + async sender
@@ -87,7 +87,7 @@ static/
 - `is_manipulated` — anomaly score >= 50 (high volatility, volume spikes, extreme prices)
 - `is_ideal` — liquid + good spread + both levels traded + not manipulated + profitable after commission
 
-## Settings (stored in PostgreSQL)
+## Settings (stored in MongoDB)
 
 | Key | Default | Description |
 |-----|---------|-------------|

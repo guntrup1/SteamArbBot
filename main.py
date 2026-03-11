@@ -178,15 +178,19 @@ async def add_item(request: Request):
 
 
 @app.delete("/api/items/{item_id}")
-async def delete_item(item_id: int):
+async def delete_item(item_id: str):
     db.remove_item(item_id)
     return JSONResponse({"success": True, "message": "Предмет удалён"})
 
 
 @app.get("/api/items/price/{item_id}")
-async def get_item_price(item_id: int):
+async def get_item_price(item_id: str):
     items = db.get_items()
-    item = next((i for i in items if i["id"] == item_id), None)
+    try:
+        search_id = int(item_id)
+    except (ValueError, TypeError):
+        search_id = item_id
+    item = next((i for i in items if i["id"] == search_id), None)
     if not item:
         return JSONResponse({"success": False, "error": "Предмет не найден"})
     settings = db.get_all_settings()

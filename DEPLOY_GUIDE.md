@@ -1,46 +1,65 @@
 # Полное руководство по деплою Steam Market Bot
 
-Пошаговая инструкция по переносу проекта на бесплатную внешнюю базу данных и бесплатный сервер.
+Пошаговая инструкция: MongoDB Atlas (бесплатная база данных) → GitHub → деплой на бесплатный сервер.
 
 ---
 
-## ЧАСТЬ 1: Бесплатная внешняя база данных (Neon.tech)
+## ЧАСТЬ 1: Бесплатная база данных MongoDB Atlas
 
-Neon — бесплатный облачный PostgreSQL. Лимиты: 512 МБ хранилища, 1 проект — для этого бота более чем достаточно.
+MongoDB Atlas — бесплатный облачный MongoDB. Лимиты: 512 МБ хранилища, 1 кластер — для этого бота более чем достаточно.
 
 ### Шаг 1: Регистрация
 
-1. Зайди на https://neon.tech
-2. Нажми **Sign Up** (можно через GitHub или Google)
-3. Подтверди email если потребуется
+1. Зайди на https://www.mongodb.com/atlas
+2. Нажми **Try Free** (или **Start Free**)
+3. Зарегистрируйся через Google, GitHub или email + пароль
+4. Подтверди email если потребуется
 
-### Шаг 2: Создание базы данных
+### Шаг 2: Создание бесплатного кластера
 
-1. После входа нажми **Create Project**
-2. Имя проекта: `steam-bot` (любое)
-3. Регион: **Europe (Frankfurt)** или ближайший к тебе
-4. PostgreSQL version: **16** (по умолчанию)
-5. Нажми **Create Project**
+1. После входа выбери **M0 FREE** (бесплатный тариф)
+2. Провайдер: **AWS** (по умолчанию)
+3. Регион: **Frankfurt (eu-central-1)** или ближайший к тебе
+4. Имя кластера: `Cluster0` (или любое)
+5. Нажми **Create Deployment**
 
-### Шаг 3: Получение строки подключения
+### Шаг 3: Создание пользователя базы данных
 
-1. После создания проекта откроется страница с **Connection Details**
-2. Выбери формат: **Connection string**
-3. Скопируй строку — она выглядит так:
+1. После создания кластера тебя попросят создать пользователя
+2. Выбери **Password** аутентификацию
+3. Введи:
+   - Username: `steambot` (или любое)
+   - Password: нажми **Autogenerate Secure Password** и **СКОПИРУЙ ПАРОЛЬ**
+4. Нажми **Create Database User**
+
+### Шаг 4: Настройка доступа по IP
+
+1. Перейди в **Network Access** (слева в меню)
+2. Нажми **Add IP Address**
+3. Нажми **Allow Access from Anywhere** (0.0.0.0/0) — чтобы сервер мог подключиться
+4. Нажми **Confirm**
+
+### Шаг 5: Получение строки подключения
+
+1. Перейди в **Database** (слева в меню)
+2. Нажми **Connect** рядом с кластером
+3. Выбери **Drivers**
+4. Скопируй строку подключения — она выглядит так:
    ```
-   postgresql://username:password@ep-xxxxx.eu-central-1.aws.neon.tech/neondb?sslmode=require
+   mongodb+srv://steambot:<password>@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority
    ```
-4. **Сохрани её** — это твой `DATABASE_URL`
+5. **Замени `<password>` на пароль** который ты скопировал в Шаге 3
+6. **Сохрани эту строку** — это твой `MONGO_URL`
 
-### Шаг 4: Проверка подключения (опционально)
+### Шаг 6: Проверка подключения (опционально)
 
 Можешь проверить подключение локально:
 ```bash
-pip install psycopg2-binary
-python -c "import psycopg2; c = psycopg2.connect('ТВОЯ_СТРОКА'); print('OK'); c.close()"
+pip install "pymongo[srv]"
+python -c "from pymongo import MongoClient; c = MongoClient('ТВОЯ_СТРОКА'); print(c.server_info()['version']); print('OK')"
 ```
 
-> Таблицы создадутся автоматически при первом запуске приложения (функция `init_db()`).
+> Коллекции и индексы создадутся автоматически при первом запуске приложения (функция `init_db()`).
 
 ---
 
@@ -91,7 +110,8 @@ python -c "import psycopg2; c = psycopg2.connect('ТВОЯ_СТРОКА'); print
    - **Instance Type**: **Free**
 
 5. Нажми **Advanced** и добавь **Environment Variables**:
-   - `DATABASE_URL` = `postgresql://username:password@ep-xxxxx.neon.tech/neondb?sslmode=require` (строка из Neon)
+   - `MONGO_URL` = `mongodb+srv://steambot:пароль@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority` (строка из Atlas)
+   - `MONGO_DB_NAME` = `steam_bot`
    - `SESSION_SECRET` = любая случайная строка (например: `my_super_secret_key_2024_xyz`)
    - `PORT` = `10000` (Render использует этот порт)
 
@@ -131,7 +151,8 @@ Railway даёт $5 бесплатного кредита в месяц (~500 ч
 
 1. Нажми на сервис → **Variables**
 2. Добавь:
-   - `DATABASE_URL` = строка из Neon
+   - `MONGO_URL` = строка из Atlas
+   - `MONGO_DB_NAME` = `steam_bot`
    - `SESSION_SECRET` = случайная строка
    - `PORT` = `5000`
 
@@ -178,7 +199,8 @@ git push github main
 
 | Переменная | Где взять | Пример |
 |---|---|---|
-| `DATABASE_URL` | Neon.tech → Connection Details | `postgresql://user:pass@ep-xxx.neon.tech/neondb?sslmode=require` |
+| `MONGO_URL` | MongoDB Atlas → Connect → Drivers | `mongodb+srv://steambot:pass@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority` |
+| `MONGO_DB_NAME` | Имя базы данных | `steam_bot` |
 | `SESSION_SECRET` | Придумай сам | `my_secret_key_2024_abc123` |
 | `PORT` | Render: `10000`, Railway: `5000` | `10000` |
 
@@ -191,7 +213,7 @@ git push github main
    - Telegram токен и Chat ID (если используешь уведомления)
    - Steam API ключ (если нужен LIVE режим)
 3. **Перейди в Сканер или Арбитраж** — проверь что работает поиск предметов
-4. Таблицы базы данных создадутся автоматически при первом запуске
+4. Коллекции и индексы MongoDB создадутся автоматически при первом запуске
 
 ---
 
@@ -199,7 +221,7 @@ git push github main
 
 ### "Application error" на Render
 - Проверь логи: Render Dashboard → твой сервис → Logs
-- Убедись что `DATABASE_URL` указан корректно
+- Убедись что `MONGO_URL` указан корректно
 - Убедись что `PORT` = `10000`
 
 ### Бот засыпает на Render (бесплатный тариф)
@@ -207,11 +229,16 @@ git push github main
 - Просыпается автоматически при следующем запросе (~30 сек)
 - Для постоянной работы используй Railway или платный тариф Render
 
-### Ошибка подключения к БД
-- Проверь что строка `DATABASE_URL` начинается с `postgresql://`
-- Проверь что есть `?sslmode=require` в конце
-- Проверь что IP не заблокирован в Neon (по умолчанию Neon разрешает все IP)
+### Ошибка подключения к MongoDB
+- Проверь что строка `MONGO_URL` начинается с `mongodb+srv://`
+- Проверь что пароль в строке корректный (без `<` и `>`)
+- Проверь что в Network Access на Atlas стоит `0.0.0.0/0` (Allow from Anywhere)
+- Если пароль содержит спецсимволы (`@`, `#`, `%` и т.д.), закодируй их URL-encoding
 
 ### Ошибка "No module named..."
 - Убедись что `requirements.txt` в корне проекта
 - Пересобери: на Render нажми **Manual Deploy** → **Clear build cache & deploy**
+
+### Ошибка "dnspython" или "DNS resolution"
+- Убедись что в `requirements.txt` стоит `pymongo[srv]` (с `[srv]`)
+- Это установит `dnspython` для поддержки `mongodb+srv://` строк подключения
