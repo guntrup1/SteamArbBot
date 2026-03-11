@@ -58,23 +58,26 @@ def _next_id(collection_name: str) -> int:
     return counter["seq"]
 
 
+_db_initialized = False
+
+
 def init_db():
-    try:
-        db = _get_db()
-        db.items.create_index([("app_id", ASCENDING), ("market_hash_name", ASCENDING)], unique=True)
-        db.items.create_index([("enabled", ASCENDING), ("name", ASCENDING)])
-        db.trades.create_index([("created_at", DESCENDING)])
-        db.trades.create_index([("test_mode", ASCENDING), ("status", ASCENDING)])
-        db.logs.create_index([("created_at", DESCENDING)])
-        db.api_logs.create_index([("created_at", DESCENDING)])
-        db.settings.create_index([("key", ASCENDING)], unique=True)
-        db.favorites.create_index([("app_id", ASCENDING), ("market_hash_name", ASCENDING)], unique=True)
-        db.favorites.create_index([("created_at", DESCENDING)])
-        db.portfolio_history.create_index([("created_at", DESCENDING)])
-        _logger.info("MongoDB connected successfully")
-    except Exception as e:
-        _logger.error(f"MongoDB init error: {e}")
-        raise
+    global _db_initialized
+    if _db_initialized:
+        return
+    _logger.info(f"Connecting to MongoDB...")
+    db = _get_db()
+    db.items.create_index([("app_id", ASCENDING), ("market_hash_name", ASCENDING)], unique=True)
+    db.items.create_index([("enabled", ASCENDING), ("name", ASCENDING)])
+    db.trades.create_index([("created_at", DESCENDING)])
+    db.trades.create_index([("test_mode", ASCENDING), ("status", ASCENDING)])
+    db.logs.create_index([("created_at", DESCENDING)])
+    db.api_logs.create_index([("created_at", DESCENDING)])
+    db.settings.create_index([("key", ASCENDING)], unique=True)
+    db.favorites.create_index([("app_id", ASCENDING), ("market_hash_name", ASCENDING)], unique=True)
+    db.favorites.create_index([("created_at", DESCENDING)])
+    db.portfolio_history.create_index([("created_at", DESCENDING)])
+    _logger.info("MongoDB connected successfully")
 
     defaults = {
         "steam_api_key": "",
@@ -102,9 +105,19 @@ def init_db():
             {"$setOnInsert": {"key": key, "value": value}},
             upsert=True
         )
+    _db_initialized = True
+
+
+def _ensure_db():
+    if not _db_initialized:
+        try:
+            init_db()
+        except Exception as e:
+            _logger.warning(f"Lazy init_db failed: {e}")
 
 
 def get_setting(key, default=None):
+    _ensure_db()
     db = _get_db()
     doc = db.settings.find_one({"key": key})
     return doc["value"] if doc else default

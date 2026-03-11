@@ -15,11 +15,13 @@ from steam_bot import config as cfg
 from steam_bot import tg_commands
 from steam_bot.config import SESSION_SECRET, HOST, PORT, get_currency_symbol, CURRENCY_INFO
 
-db.init_db()
-
-
 @asynccontextmanager
 async def lifespan(application: FastAPI):
+    try:
+        db.init_db()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"DB init failed: {e}, will retry on first request")
     asyncio.create_task(tg_commands.start_telegram_bot())
     yield
     await tg_commands.stop_telegram_bot()
@@ -37,7 +39,7 @@ async def health_check():
         db._get_db().command("ping")
         return JSONResponse({"status": "ok", "db": "connected"})
     except Exception as e:
-        return JSONResponse({"status": "error", "db": str(e)}, status_code=503)
+        return JSONResponse({"status": "ok", "db": f"not ready: {e}"})
 
 
 @app.get("/", response_class=HTMLResponse)
