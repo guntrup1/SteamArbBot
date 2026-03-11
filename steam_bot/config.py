@@ -6,7 +6,7 @@ load_dotenv()
 SESSION_SECRET = os.getenv("SESSION_SECRET", "steam_bot_secret_key_2024")
 
 HOST = "0.0.0.0"
-PORT = 5000
+PORT = int(os.getenv("PORT", "5000"))
 
 STEAM_COMMISSION = 0.15
 

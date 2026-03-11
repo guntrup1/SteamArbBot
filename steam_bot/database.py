@@ -3,11 +3,15 @@ import psycopg2
 import psycopg2.extras
 from datetime import datetime, date
 
-DATABASE_URL = os.environ.get("DATABASE_URL")
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 
 def get_connection():
-    conn = psycopg2.connect(DATABASE_URL)
+    url = DATABASE_URL
+    if url and "sslmode" not in url:
+        sep = "&" if "?" in url else "?"
+        url += f"{sep}sslmode=require"
+    conn = psycopg2.connect(url)
     return conn
 
 

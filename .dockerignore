@@ -1,0 +1,13 @@
+__pycache__
+*.pyc
+.git
+.env
+.replit
+replit.nix
+.local
+.cache
+.upm
+.pythonlibs
+uv.lock
+pyproject.toml
+.dockerignore

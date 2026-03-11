@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+.replit
+replit.nix
+.local/
+.cache/
+.upm/
+.pythonlibs/
+uv.lock
+*.db
