@@ -55,8 +55,8 @@ def init_db():
     db.items.create_index([("enabled", ASCENDING), ("name", ASCENDING)])
     db.trades.create_index([("created_at", DESCENDING)])
     db.trades.create_index([("test_mode", ASCENDING), ("status", ASCENDING)])
-    db.logs.create_index([("_id", DESCENDING)])
-    db.api_logs.create_index([("_id", DESCENDING)])
+    db.logs.create_index([("created_at", DESCENDING)])
+    db.api_logs.create_index([("created_at", DESCENDING)])
     db.settings.create_index([("key", ASCENDING)], unique=True)
 
     defaults = {
