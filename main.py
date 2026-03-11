@@ -1,5 +1,6 @@
 import asyncio
 import json
+from contextlib import asynccontextmanager
 from datetime import datetime
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -11,11 +12,20 @@ from steam_bot import database as db
 from steam_bot import market as mkt
 from steam_bot import trading
 from steam_bot import config as cfg
+from steam_bot import tg_commands
 from steam_bot.config import SESSION_SECRET, HOST, PORT, get_currency_symbol, CURRENCY_INFO
 
 db.init_db()
 
-app = FastAPI(title="Steam Market Bot")
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    asyncio.create_task(tg_commands.start_telegram_bot())
+    yield
+    await tg_commands.stop_telegram_bot()
+
+
+app = FastAPI(title="Steam Market Bot", lifespan=lifespan)
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
@@ -150,7 +160,17 @@ async def save_settings(request: Request):
             db.set_setting(key, str(data[key]))
     if "virtual_balance" in data and not trading.is_running():
         db.set_setting("current_virtual_balance", str(data["virtual_balance"]))
+    if "telegram_bot_token" in data or "telegram_chat_id" in data:
+        asyncio.create_task(_restart_tg_bot())
     return JSONResponse({"success": True, "message": "Настройки сохранены"})
+
+
+async def _restart_tg_bot():
+    lock = tg_commands._get_lock()
+    async with lock:
+        await tg_commands.stop_telegram_bot()
+        await asyncio.sleep(1)
+        await tg_commands.start_telegram_bot()
 
 
 @app.post("/api/settings/mode")

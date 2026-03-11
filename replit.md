@@ -20,6 +20,7 @@ The bot scans Steam Market for liquid items (600+ sales/week), compares buy orde
 - **LIVE mode** — real Steam balance, real buy/sell transactions (requires Steam Guard)
 - **Real-time WebSocket logs** — live trading log stream to the dashboard
 - **Telegram notifications** — buy/sell/error alerts in both TEST and LIVE modes
+- **Telegram bot commands** — /status, /start_bot, /stop_bot, /portfolio, /items, /trades, /logs, /mode — full control from Telegram
 - **MongoDB persistence** — items, trades, logs, settings, balance history
 - **Persistent Error Log** — errors/warnings stay visible for 15 seconds with close button + collapsible error log panel (bottom-left) with full history
 - **API Logs** — all Steam API requests/responses logged to MongoDB
@@ -43,6 +44,7 @@ steam_bot/
   market.py              # Steam Market API: scan_market, scan_arbitrage, buy orders, anomaly detection, history analysis
   trading.py             # Bot loop, buy/sell logic, WS broadcast, mode mgmt
   telegram_bot.py        # Telegram formatters + async sender
+  tg_commands.py         # Interactive Telegram bot: commands, inline buttons, polling
 templates/
   dashboard.html         # Dashboard: stats, items, logs, trades
   scanner.html           # Scanner: TF2/Dota2/CS2 presets, buy orders, spread, anomalies, results
