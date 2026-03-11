@@ -100,6 +100,61 @@ def format_balance_change(old_balance: float, new_balance: float, mode: str, cur
     )
 
 
+def _esc_html(text: str) -> str:
+    return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def format_portfolio_update(action: str, item_name: str, data: dict) -> str:
+    now = datetime.now().strftime("%H:%M:%S %d.%m.%Y")
+    item_name = _esc_html(item_name)
+    buy_price = data.get("buy_price", 0)
+    sell_price = data.get("sell_price", 0)
+    quantity = data.get("orders_quantity", 0)
+    potential = quantity * (sell_price * 0.85 - buy_price) if quantity > 0 and sell_price > 0 else 0
+    steam_url = data.get("steam_url", "")
+
+    if action == "added":
+        emoji = "⭐"
+        title = "ДОБАВЛЕН В ИЗБРАННОЕ"
+    elif action == "updated":
+        emoji = "📝"
+        title = "ОБНОВЛЁН В ПОРТФЕЛЕ"
+    elif action == "removed":
+        emoji = "🗑"
+        title = "УДАЛЁН ИЗ ПОРТФЕЛЯ"
+    else:
+        emoji = "📋"
+        title = "ПОРТФЕЛЬ"
+
+    url_line = f"\n🔗 <a href='{steam_url}'>Steam Market</a>" if steam_url else ""
+
+    lines = [f"{emoji} <b>{title}</b>\n"]
+    lines.append(f"Предмет: <b>{item_name}</b>")
+    if buy_price > 0:
+        lines.append(f"Авто-бай: <b>${buy_price:.2f}</b>")
+    if sell_price > 0:
+        lines.append(f"Цена продажи: <b>${sell_price:.2f}</b>")
+    if quantity > 0:
+        lines.append(f"Количество: <b>{quantity}</b>")
+    if data.get("total_spent", 0) > 0:
+        lines.append(f"Потрачено: <b>${data['total_spent']:.2f}</b>")
+    if data.get("items_bought", 0) > 0:
+        lines.append(f"Куплено: <b>{data['items_bought']}</b> шт")
+    if data.get("items_sold", 0) > 0:
+        lines.append(f"Продано: <b>{data['items_sold']}</b> шт")
+    if data.get("total_sold", 0) > 0:
+        lines.append(f"Выручка: <b>${data['total_sold']:.2f}</b>")
+    if potential != 0:
+        lines.append(f"Потенц. прибыль: <b>${potential:.2f}</b>")
+    if data.get("actual_profit") is not None:
+        ap = data["actual_profit"]
+        lines.append(f"Факт. прибыль: <b>{'✅' if ap >= 0 else '❌'} ${ap:.2f}</b>")
+    lines.append(f"\n📅 {now}")
+    lines.append(url_line)
+
+    return "\n".join(lines)
+
+
 def format_error(error_msg: str, item_name: str = None, mode: str = "TEST") -> str:
     mode_label = "🧪 ТЕСТ" if mode == "TEST" else "💵 РЕАЛЬНЫЙ"
     item_line = f"\nПредмет: {item_name}" if item_name else ""

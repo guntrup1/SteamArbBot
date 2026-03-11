@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Steam Market Bot — Портфель</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+.portfolio-card {
+  background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;
+  transition:border-color .2s;
+}
+.portfolio-card:hover { border-color:var(--blue); }
+.portfolio-card .item-header { display:flex;align-items:center;gap:12px;margin-bottom:12px; }
+.portfolio-card .item-img { width:48px;height:48px;object-fit:contain;border-radius:6px;background:var(--bg-card2); }
+.portfolio-card .item-name { font-weight:700;font-size:14px;flex:1; }
+.portfolio-card .item-status {
+  padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;
+}
+.status-watching { background:rgba(88,166,255,0.15);color:var(--blue); }
+.status-buying { background:rgba(210,153,34,0.15);color:var(--yellow); }
+.status-selling { background:rgba(163,113,247,0.15);color:var(--purple); }
+.status-done { background:rgba(63,185,80,0.15);color:var(--green); }
+.stat-mini { display:flex;flex-direction:column;align-items:center;padding:8px 12px;background:var(--bg-card2);border-radius:8px;min-width:100px; }
+.stat-mini .label { font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600;margin-bottom:2px; }
+.stat-mini .value { font-size:16px;font-weight:700; }
+.edit-grid { display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px; }
+.edit-grid label { font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:2px;display:block; }
+.edit-grid input { width:100%;padding:6px 8px;background:var(--bg-card2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px; }
+.profit-pos { color:var(--green); }
+.profit-neg { color:var(--red); }
+.history-row { padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;display:flex;justify-content:space-between;align-items:center; }
+.history-row:last-child { border-bottom:none; }
+</style>
+</head>
+<body>
+
+<nav class="navbar">
+  <span class="navbar-brand">🤖 Steam Bot</span>
+  <div class="navbar-nav">
+    <a href="/" class="nav-link">📊 Dashboard</a>
+    <a href="/scanner" class="nav-link">🔍 Сканер</a>
+    <a href="/arbitrage" class="nav-link">💹 Арбитраж</a>
+    <a href="/portfolio" class="nav-link active">⭐ Портфель</a>
+    <a href="/settings" class="nav-link">⚙️ Настройки</a>
+  </div>
+</nav>
+
+<div class="container">
+
+  <div class="mb-16">
+    <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">⭐ Портфель — Избранные предметы</h2>
+    <p class="text-muted" style="font-size:13px">Отслеживание избранных предметов из арбитража. Запросы на покупку, расходы, потенциальная и фактическая прибыль.</p>
+  </div>
+
+  <div class="grid-4 mb-16" id="portfolio-stats">
+    <div class="stat-card">
+      <div class="stat-label">💰 ПОТРАЧЕНО</div>
+      <div class="stat-value" id="stat-spent">$0.00</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">📈 ПОТЕНЦ. ПРИБЫЛЬ</div>
+      <div class="stat-value" id="stat-potential">$0.00</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">✅ ФАКТ. ПРИБЫЛЬ</div>
+      <div class="stat-value" id="stat-actual">$0.00</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">📦 ПРЕДМЕТОВ</div>
+      <div class="stat-value" id="stat-count">0</div>
+      <div class="text-muted" style="font-size:11px" id="stat-bought-sold">Куплено: 0 / Продано: 0</div>
+    </div>
+  </div>
+
+  <div id="favorites-list"></div>
+
+  <div id="empty-state" style="display:none;text-align:center;padding:60px 20px">
+    <div style="font-size:48px;margin-bottom:12px">⭐</div>
+    <div style="font-weight:700;font-size:16px;margin-bottom:6px">Портфель пуст</div>
+    <div class="text-muted" style="font-size:13px;margin-bottom:16px">Перейди во вкладку Арбитраж, найди интересные предметы и нажми ⭐ чтобы добавить их сюда</div>
+    <a href="/arbitrage" class="btn btn-blue">💹 Перейти в Арбитраж</a>
+  </div>
+
+  <div class="card mt-16" id="history-section" style="display:none">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+      <span>📋 История изменений</span>
+      <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px" onclick="toggleHistory()">Свернуть</button>
+    </div>
+    <div id="history-body" class="card-body" style="max-height:300px;overflow-y:auto;padding:0"></div>
+  </div>
+
+</div>
+
+<div id="toast-container" style="position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px"></div>
+
+<script>
+let _favorites = [];
+let _historyVisible = true;
+
+function showToast(msg, type = 'info') {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  const span = document.createElement('span');
+  span.style.flex = '1';
+  span.textContent = msg;
+  toast.appendChild(span);
+  if (type === 'error' || type === 'warning') {
+    const closeBtn = document.createElement('span');
+    closeBtn.textContent = '\u2715';
+    closeBtn.style.cssText = 'cursor:pointer;margin-left:8px;opacity:0.7;font-size:14px';
+    closeBtn.onclick = () => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 200); };
+    toast.appendChild(closeBtn);
+  }
+  container.appendChild(toast);
+  const dur = (type === 'error' || type === 'warning') ? 10000 : 4000;
+  setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity .3s'; setTimeout(() => toast.remove(), 300); }, dur);
+}
+
+async function loadPortfolio() {
+  try {
+    const res = await fetch('/api/favorites');
+    const data = await res.json();
+    if (data.success) {
+      _favorites = data.favorites || [];
+      renderFavorites(_favorites);
+      updateStats(data.stats || {});
+      showToast('Портфель загружен', 'success');
+    } else {
+      showToast(data.message || 'Ошибка загрузки', 'error');
+    }
+  } catch (e) {
+    showToast('Ошибка сети: ' + e.message, 'error');
+  }
+  loadHistory();
+}
+
+function updateStats(s) {
+  document.getElementById('stat-spent').textContent = '$' + (s.total_spent || 0).toFixed(2);
+  const potEl = document.getElementById('stat-potential');
+  potEl.textContent = '$' + (s.potential_profit || 0).toFixed(2);
+  potEl.className = 'stat-value ' + ((s.potential_profit || 0) >= 0 ? 'profit-pos' : 'profit-neg');
+  const actEl = document.getElementById('stat-actual');
+  actEl.textContent = '$' + (s.actual_profit || 0).toFixed(2);
+  actEl.className = 'stat-value ' + ((s.actual_profit || 0) >= 0 ? 'profit-pos' : 'profit-neg');
+  document.getElementById('stat-count').textContent = s.total_items || 0;
+  document.getElementById('stat-bought-sold').textContent = `Куплено: ${s.total_items_bought || 0} / Продано: ${s.total_items_sold || 0}`;
+}
+
+function renderFavorites(favs) {
+  const list = document.getElementById('favorites-list');
+  const empty = document.getElementById('empty-state');
+
+  if (favs.length === 0) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  list.innerHTML = favs.map(f => {
+    const statusClass = f.status === 'buying' ? 'status-buying' : f.status === 'selling' ? 'status-selling' : f.status === 'done' ? 'status-done' : 'status-watching';
+    const statusLabel = f.status === 'buying' ? 'Покупка' : f.status === 'selling' ? 'Продажа' : f.status === 'done' ? 'Завершён' : 'Наблюдение';
+    const imgHtml = f.icon_url
+      ? `<img src="${escHtml(f.icon_url)}" class="item-img" onerror="this.style.display='none'">`
+      : `<div class="item-img" style="display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:20px">🔷</div>`;
+
+    const spent = f.total_spent || 0;
+    const sold = f.total_sold || 0;
+    const bought = f.items_bought || 0;
+    const soldItems = f.items_sold || 0;
+    const remaining = bought - soldItems;
+    const potentialProfit = remaining > 0 ? remaining * ((f.sell_price || 0) * 0.85 - (f.buy_price || 0)) : 0;
+    const actualProfit = (sold * 0.85) - spent;
+
+    return `<div class="portfolio-card" id="fav-${f.fav_id}">
+      <div class="item-header">
+        ${imgHtml}
+        <div class="item-name">
+          ${escHtml(f.name)}
+          <div style="font-size:11px;color:var(--text-muted);font-weight:400;margin-top:2px">AppID: ${f.app_id}</div>
+        </div>
+        <span class="item-status ${statusClass}">${statusLabel}</span>
+        <a href="${escHtml(f.steam_url || '')}" target="_blank" class="btn btn-ghost" style="padding:4px 8px;font-size:11px">🔗</a>
+        <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;color:var(--red)" data-fav-id="${f.fav_id}" data-fav-name="${escHtml(f.name)}" onclick="removeFav(this.dataset.favId, this.dataset.favName)">🗑</button>
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+        <div class="stat-mini">
+          <span class="label">Авто-бай</span>
+          <span class="value" style="color:var(--blue)">$${(f.buy_price || 0).toFixed(2)}</span>
+        </div>
+        <div class="stat-mini">
+          <span class="label">Цена продажи</span>
+          <span class="value" style="color:var(--purple)">$${(f.sell_price || 0).toFixed(2)}</span>
+        </div>
+        <div class="stat-mini">
+          <span class="label">Запросов</span>
+          <span class="value">${f.orders_placed || 0}</span>
+        </div>
+        <div class="stat-mini">
+          <span class="label">Куплено</span>
+          <span class="value">${bought}</span>
+        </div>
+        <div class="stat-mini">
+          <span class="label">Продано</span>
+          <span class="value">${soldItems}</span>
+        </div>
+        <div class="stat-mini">
+          <span class="label">Потрачено</span>
+          <span class="value">$${spent.toFixed(2)}</span>
+        </div>
+        <div class="stat-mini">
+          <span class="label">Потенц.</span>
+          <span class="value ${potentialProfit >= 0 ? 'profit-pos' : 'profit-neg'}">$${potentialProfit.toFixed(2)}</span>
+        </div>
+        <div class="stat-mini">
+          <span class="label">Факт.</span>
+          <span class="value ${actualProfit >= 0 ? 'profit-pos' : 'profit-neg'}">$${actualProfit.toFixed(2)}</span>
+        </div>
+      </div>
+
+      <details>
+        <summary style="cursor:pointer;font-size:12px;color:var(--blue);font-weight:600;margin-bottom:8px">📝 Редактировать</summary>
+        <div class="edit-grid">
+          <div>
+            <label>Запросов размещено</label>
+            <input type="number" id="edit-orders-${f.fav_id}" value="${f.orders_placed || 0}" min="0">
+          </div>
+          <div>
+            <label>Кол-во в запросах</label>
+            <input type="number" id="edit-qty-${f.fav_id}" value="${f.orders_quantity || 0}" min="0">
+          </div>
+          <div>
+            <label>Потрачено ($)</label>
+            <input type="number" id="edit-spent-${f.fav_id}" value="${spent.toFixed(2)}" min="0" step="0.01">
+          </div>
+          <div>
+            <label>Куплено (шт)</label>
+            <input type="number" id="edit-bought-${f.fav_id}" value="${bought}" min="0">
+          </div>
+          <div>
+            <label>Продано (шт)</label>
+            <input type="number" id="edit-sold-items-${f.fav_id}" value="${soldItems}" min="0">
+          </div>
+          <div>
+            <label>Выручка ($)</label>
+            <input type="number" id="edit-sold-total-${f.fav_id}" value="${sold.toFixed(2)}" min="0" step="0.01">
+          </div>
+          <div>
+            <label>Цена покупки ($)</label>
+            <input type="number" id="edit-buy-${f.fav_id}" value="${(f.buy_price || 0).toFixed(2)}" min="0" step="0.01">
+          </div>
+          <div>
+            <label>Цена продажи ($)</label>
+            <input type="number" id="edit-sell-${f.fav_id}" value="${(f.sell_price || 0).toFixed(2)}" min="0" step="0.01">
+          </div>
+          <div style="grid-column:1/-1">
+            <label>Статус</label>
+            <select id="edit-status-${f.fav_id}" style="width:100%;padding:6px 8px;background:var(--bg-card2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
+              <option value="watching" ${f.status === 'watching' ? 'selected' : ''}>Наблюдение</option>
+              <option value="buying" ${f.status === 'buying' ? 'selected' : ''}>Покупка</option>
+              <option value="selling" ${f.status === 'selling' ? 'selected' : ''}>Продажа</option>
+              <option value="done" ${f.status === 'done' ? 'selected' : ''}>Завершён</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <button class="btn btn-green" style="flex:1" onclick="saveFav('${f.fav_id}')">💾 Сохранить</button>
+        </div>
+      </details>
+    </div>`;
+  }).join('');
+}
+
+async function saveFav(fid) {
+  const data = {
+    orders_placed: parseInt(document.getElementById('edit-orders-' + fid).value) || 0,
+    orders_quantity: parseInt(document.getElementById('edit-qty-' + fid).value) || 0,
+    total_spent: parseFloat(document.getElementById('edit-spent-' + fid).value) || 0,
+    items_bought: parseInt(document.getElementById('edit-bought-' + fid).value) || 0,
+    items_sold: parseInt(document.getElementById('edit-sold-items-' + fid).value) || 0,
+    total_sold: parseFloat(document.getElementById('edit-sold-total-' + fid).value) || 0,
+    buy_price: parseFloat(document.getElementById('edit-buy-' + fid).value) || 0,
+    sell_price: parseFloat(document.getElementById('edit-sell-' + fid).value) || 0,
+    status: document.getElementById('edit-status-' + fid).value,
+  };
+  try {
+    const res = await fetch('/api/favorites/' + fid + '/update', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    if (result.success) {
+      showToast(result.message || 'Сохранено', 'success');
+      loadPortfolio();
+    } else {
+      showToast(result.message || 'Ошибка сохранения', 'error');
+    }
+  } catch (e) {
+    showToast('Ошибка сети: ' + e.message, 'error');
+  }
+}
+
+async function removeFav(fid, name) {
+  if (!confirm(`Удалить "${name}" из портфеля?`)) return;
+  try {
+    const res = await fetch('/api/favorites/' + fid, { method: 'DELETE' });
+    const result = await res.json();
+    if (result.success) {
+      showToast(result.message || 'Удалено', 'success');
+      loadPortfolio();
+    } else {
+      showToast(result.message || 'Ошибка', 'error');
+    }
+  } catch (e) {
+    showToast('Ошибка сети: ' + e.message, 'error');
+  }
+}
+
+async function loadHistory() {
+  try {
+    const res = await fetch('/api/portfolio/history?limit=50');
+    const data = await res.json();
+    if (data.success && data.history && data.history.length > 0) {
+      const section = document.getElementById('history-section');
+      section.style.display = 'block';
+      const body = document.getElementById('history-body');
+      body.innerHTML = data.history.map(h => {
+        const actionLabel = h.action === 'added' ? '⭐ Добавлен' : h.action === 'updated' ? '📝 Обновлён' : h.action === 'removed' ? '🗑 Удалён' : h.action;
+        const dt = h.created_at ? new Date(h.created_at).toLocaleString('ru-RU') : '';
+        return `<div class="history-row">
+          <span><b>${actionLabel}</b> — ${escHtml(h.item_name || '')}</span>
+          <span class="text-muted">${dt}</span>
+        </div>`;
+      }).join('');
+    }
+  } catch (e) {
+    showToast('Ошибка загрузки истории', 'warning');
+  }
+}
+
+function toggleHistory() {
+  const body = document.getElementById('history-body');
+  _historyVisible = !_historyVisible;
+  body.style.display = _historyVisible ? 'block' : 'none';
+}
+
+function escHtml(str) {
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+loadPortfolio();
+</script>
+</body>
+</html>

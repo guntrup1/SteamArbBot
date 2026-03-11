@@ -58,6 +58,9 @@ def init_db():
     db.logs.create_index([("created_at", DESCENDING)])
     db.api_logs.create_index([("created_at", DESCENDING)])
     db.settings.create_index([("key", ASCENDING)], unique=True)
+    db.favorites.create_index([("app_id", ASCENDING), ("market_hash_name", ASCENDING)], unique=True)
+    db.favorites.create_index([("created_at", DESCENDING)])
+    db.portfolio_history.create_index([("created_at", DESCENDING)])
 
     defaults = {
         "steam_api_key": "",
@@ -272,5 +275,157 @@ def add_api_log(endpoint: str, params: dict, status: int, response: dict, error:
 def get_api_logs(limit=200):
     db = _get_db()
     docs = list(db.api_logs.find().sort("_id", DESCENDING).limit(limit))
+    docs.reverse()
+    return [_serialize(doc) for doc in docs]
+
+
+def add_favorite(name, market_hash_name, app_id, buy_price, sell_price,
+                 profit_pct, weekly_sales, icon_url=None, steam_url=None):
+    db = _get_db()
+    existing = db.favorites.find_one({
+        "market_hash_name": market_hash_name,
+        "app_id": app_id
+    })
+    if existing:
+        db.favorites.update_one(
+            {"_id": existing["_id"]},
+            {"$set": {
+                "name": name,
+                "buy_price": buy_price,
+                "sell_price": sell_price,
+                "profit_pct": profit_pct,
+                "weekly_sales": weekly_sales,
+                "icon_url": icon_url,
+                "steam_url": steam_url or existing.get("steam_url", ""),
+                "updated_at": datetime.now(),
+            }}
+        )
+        return str(existing["_id"]), False
+    fav_id = _next_id("favorites")
+    result = db.favorites.insert_one({
+        "fav_id": fav_id,
+        "name": name,
+        "market_hash_name": market_hash_name,
+        "app_id": app_id,
+        "buy_price": buy_price,
+        "sell_price": sell_price,
+        "profit_pct": profit_pct,
+        "weekly_sales": weekly_sales,
+        "icon_url": icon_url,
+        "steam_url": steam_url or f"https://steamcommunity.com/market/listings/{app_id}/{market_hash_name}",
+        "orders_placed": 0,
+        "orders_quantity": 0,
+        "total_spent": 0.0,
+        "total_sold": 0.0,
+        "items_bought": 0,
+        "items_sold": 0,
+        "status": "watching",
+        "created_at": datetime.now(),
+        "updated_at": datetime.now(),
+    })
+    return str(result.inserted_id), True
+
+
+def remove_favorite(fav_id):
+    db = _get_db()
+    try:
+        result = db.favorites.delete_one({"_id": ObjectId(fav_id)})
+        return result.deleted_count > 0
+    except Exception:
+        try:
+            result = db.favorites.delete_one({"fav_id": int(fav_id)})
+            return result.deleted_count > 0
+        except Exception:
+            return False
+
+
+def get_favorites():
+    db = _get_db()
+    docs = db.favorites.find().sort("created_at", DESCENDING)
+    results = []
+    for doc in docs:
+        item = _serialize(doc)
+        item["fav_id"] = str(doc["_id"])
+        results.append(item)
+    return results
+
+
+def update_favorite(fav_id, data):
+    db = _get_db()
+    update_fields = {}
+    allowed = ["orders_placed", "orders_quantity", "total_spent", "total_sold",
+               "items_bought", "items_sold", "buy_price", "sell_price", "status", "notes"]
+    for k in allowed:
+        if k in data:
+            if k in ("orders_placed", "orders_quantity", "items_bought", "items_sold"):
+                update_fields[k] = int(data[k])
+            elif k in ("total_spent", "total_sold", "buy_price", "sell_price"):
+                update_fields[k] = float(data[k])
+            else:
+                update_fields[k] = data[k]
+    if update_fields:
+        update_fields["updated_at"] = datetime.now()
+        db.favorites.update_one(
+            {"_id": ObjectId(fav_id)},
+            {"$set": update_fields}
+        )
+    doc = db.favorites.find_one({"_id": ObjectId(fav_id)})
+    return _serialize(doc) if doc else None
+
+
+def get_favorite_by_id(fav_id):
+    db = _get_db()
+    doc = db.favorites.find_one({"_id": ObjectId(fav_id)})
+    if doc:
+        item = _serialize(doc)
+        item["fav_id"] = str(doc["_id"])
+        return item
+    return None
+
+
+def get_portfolio_stats():
+    db = _get_db()
+    docs = list(db.favorites.find())
+    total_spent = sum(d.get("total_spent", 0) for d in docs)
+    total_sold = sum(d.get("total_sold", 0) for d in docs)
+    total_items_bought = sum(d.get("items_bought", 0) for d in docs)
+    total_items_sold = sum(d.get("items_sold", 0) for d in docs)
+    total_orders = sum(d.get("orders_placed", 0) for d in docs)
+    potential_profit = 0
+    for d in docs:
+        bought = d.get("items_bought", 0)
+        sold = d.get("items_sold", 0)
+        remaining = bought - sold
+        if remaining > 0:
+            sell_p = d.get("sell_price", 0)
+            buy_p = d.get("buy_price", 0)
+            potential_profit += remaining * (sell_p * 0.85 - buy_p)
+    actual_profit = (total_sold * 0.85) - total_spent
+    return {
+        "total_items": len(docs),
+        "total_spent": round(total_spent, 2),
+        "total_sold": round(total_sold, 2),
+        "total_items_bought": total_items_bought,
+        "total_items_sold": total_items_sold,
+        "total_orders": total_orders,
+        "potential_profit": round(potential_profit, 2),
+        "actual_profit": round(actual_profit, 2),
+    }
+
+
+def add_portfolio_history(action, fav_id, item_name, details):
+    db = _get_db()
+    db.portfolio_history.insert_one({
+        "action": action,
+        "fav_id": fav_id,
+        "item_name": item_name,
+        "details": details,
+        "created_at": datetime.now(),
+    })
+
+
+def get_portfolio_history(limit=100):
+    db = _get_db()
+    docs = list(db.portfolio_history.find().sort("_id", DESCENDING).limit(limit))
     docs.reverse()
     return [_serialize(doc) for doc in docs]

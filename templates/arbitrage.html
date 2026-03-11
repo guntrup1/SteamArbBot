@@ -38,6 +38,7 @@
     <a href="/" class="nav-link">📊 Dashboard</a>
     <a href="/scanner" class="nav-link">🔍 Сканер</a>
     <a href="/arbitrage" class="nav-link active">💹 Арбитраж</a>
+    <a href="/portfolio" class="nav-link">⭐ Портфель</a>
     <a href="/settings" class="nav-link">⚙️ Настройки</a>
   </div>
   <div class="navbar-right">
@@ -188,7 +189,7 @@
               <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border);cursor:pointer" onclick="sortBy('profit_pct_vs_median')" class="sort-btn">ПРИБЫЛЬ (медиана) <span class="sort-arrow" id="sort-profit_pct_vs_median"></span></th>
               <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border);cursor:pointer" onclick="sortBy('daily_sales')" class="sort-btn">ПРОДАЖ/ДЕНЬ <span class="sort-arrow" id="sort-daily_sales"></span></th>
               <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border);cursor:pointer" onclick="sortBy('weekly_sales')" class="sort-btn">ПРОДАЖ/НЕД <span class="sort-arrow" id="sort-weekly_sales"></span></th>
-              <th style="padding:10px 8px;border-bottom:2px solid var(--border)"></th>
+              <th style="padding:10px 8px;text-align:center;color:var(--text-muted);font-size:11px;font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border)">ДЕЙСТВИЯ</th>
             </tr>
           </thead>
           <tbody id="arb-tbody"></tbody>
@@ -424,8 +425,9 @@ function renderArbResults(results) {
       </td>
       <td style="padding:8px 6px;text-align:center;font-weight:600;color:${salesColor}">${item.daily_sales}</td>
       <td style="padding:8px 6px;text-align:center;font-weight:600;color:${salesColor}">${item.weekly_sales}</td>
-      <td style="padding:8px 6px;white-space:nowrap">
-        <a href="${escHtml(item.steam_url)}" target="_blank" class="btn btn-ghost" style="padding:4px 8px;font-size:11px">🔗 Steam</a>
+      <td style="padding:8px 6px;white-space:nowrap;text-align:center">
+        <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px" onclick="saveFavorite(${idx})" title="В избранное">⭐</button>
+        <a href="${escHtml(item.steam_url)}" target="_blank" class="btn btn-ghost" style="padding:4px 8px;font-size:11px">🔗</a>
       </td>
     </tr>`;
   }).join('');
@@ -433,6 +435,36 @@ function renderArbResults(results) {
 
 function escHtml(str) {
   return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function saveFavorite(idx) {
+  const item = _arbFiltered[idx];
+  if (!item) { showToast('Предмет не найден', 'error'); return; }
+  try {
+    const res = await fetch('/api/favorites/add', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        name: item.name,
+        market_hash_name: item.market_hash_name || item.name,
+        app_id: item.app_id || parseInt(document.getElementById('arb-appid').value),
+        buy_price: item.highest_buy_order || 0,
+        sell_price: item.lowest_sell_order || 0,
+        profit_pct: item.profit_pct_vs_sell || 0,
+        weekly_sales: item.weekly_sales || 0,
+        icon_url: item.icon_url || '',
+        steam_url: item.steam_url || '',
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message, 'success');
+    } else {
+      showToast(data.message || 'Ошибка сохранения', 'error');
+    }
+  } catch (e) {
+    showToast('Ошибка сети: ' + e.message, 'error');
+  }
 }
 
 document.getElementById('arb-min-profit').addEventListener('input', applyFilters);

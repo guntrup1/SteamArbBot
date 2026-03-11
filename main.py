@@ -400,6 +400,125 @@ async def arbitrage_scan(request: Request):
                              "message": f"Ошибка: {str(e)}"})
 
 
+@app.get("/portfolio", response_class=HTMLResponse)
+async def portfolio_page(request: Request):
+    settings = db.get_all_settings()
+    currency_code = settings.get("steam_currency", "5")
+    currency_symbol = get_currency_symbol(currency_code)
+    return templates.TemplateResponse("portfolio.html", {
+        "request": request,
+        "settings": settings,
+        "currency_symbol": currency_symbol,
+    })
+
+
+@app.post("/api/favorites/add")
+async def add_favorite(request: Request):
+    data = await request.json()
+    name = data.get("name", "").strip()
+    market_hash_name = data.get("market_hash_name", name).strip()
+    if not name:
+        return JSONResponse({"success": False, "message": "Укажите название предмета"})
+    try:
+        app_id = int(data.get("app_id", 440))
+        buy_price = float(data.get("buy_price", 0))
+        sell_price = float(data.get("sell_price", 0))
+        profit_pct = float(data.get("profit_pct", 0))
+        weekly_sales = int(data.get("weekly_sales", 0))
+    except (ValueError, TypeError) as e:
+        return JSONResponse({"success": False, "message": f"Ошибка данных: {e}"})
+    if str(app_id) not in cfg.SUPPORTED_APPS:
+        return JSONResponse({"success": False, "message": f"Игра {app_id} не поддерживается"})
+    if buy_price < 0 or sell_price < 0 or weekly_sales < 0:
+        return JSONResponse({"success": False, "message": "Значения не могут быть отрицательными"})
+    icon_url = data.get("icon_url", "")
+    steam_url = data.get("steam_url", "")
+    try:
+        fav_id, is_new = db.add_favorite(
+            name, market_hash_name, app_id, buy_price, sell_price,
+            profit_pct, weekly_sales, icon_url or None, steam_url or None
+        )
+        action = "added" if is_new else "updated"
+        fav_data = db.get_favorite_by_id(fav_id)
+        db.add_portfolio_history(
+            action, fav_id, name,
+            {"buy_price": buy_price, "sell_price": sell_price, "profit_pct": profit_pct}
+        )
+        from steam_bot import telegram_bot as tg
+        token = db.get_setting("telegram_bot_token", "")
+        chat_id = db.get_setting("telegram_chat_id", "")
+        if token and chat_id:
+            msg = tg.format_portfolio_update(action, name, {
+                "buy_price": buy_price, "sell_price": sell_price,
+                "steam_url": steam_url, "orders_quantity": 0,
+            })
+            await tg.send_telegram_message(token, chat_id, msg)
+        label = "добавлен в избранное" if is_new else "обновлён"
+        return JSONResponse({"success": True, "message": f"✅ {name} — {label}", "fav_id": fav_id})
+    except Exception as e:
+        return JSONResponse({"success": False, "message": f"Ошибка БД: {str(e)}"})
+
+
+@app.delete("/api/favorites/{fav_id}")
+async def delete_favorite(fav_id: str):
+    try:
+        fav = db.get_favorite_by_id(fav_id)
+        name = fav["name"] if fav else "Неизвестно"
+        deleted = db.remove_favorite(fav_id)
+        if not deleted:
+            return JSONResponse({"success": False, "message": "Предмет не найден"})
+        db.add_portfolio_history("removed", fav_id, name, {})
+        from steam_bot import telegram_bot as tg
+        token = db.get_setting("telegram_bot_token", "")
+        chat_id = db.get_setting("telegram_chat_id", "")
+        if token and chat_id and fav:
+            msg = tg.format_portfolio_update("removed", name, fav)
+            await tg.send_telegram_message(token, chat_id, msg)
+        return JSONResponse({"success": True, "message": f"✅ {name} — удалён из портфеля"})
+    except Exception as e:
+        return JSONResponse({"success": False, "message": f"Ошибка: {str(e)}"})
+
+
+@app.get("/api/favorites")
+async def get_favorites():
+    try:
+        favs = db.get_favorites()
+        stats = db.get_portfolio_stats()
+        return JSONResponse({"success": True, "favorites": favs, "stats": stats})
+    except Exception as e:
+        return JSONResponse({"success": False, "message": f"Ошибка: {str(e)}"})
+
+
+@app.post("/api/favorites/{fav_id}/update")
+async def update_favorite(fav_id: str, request: Request):
+    data = await request.json()
+    try:
+        updated = db.update_favorite(fav_id, data)
+        if not updated:
+            return JSONResponse({"success": False, "message": "Предмет не найден"})
+        db.add_portfolio_history("updated", fav_id, updated.get("name", ""), data)
+        from steam_bot import telegram_bot as tg
+        token = db.get_setting("telegram_bot_token", "")
+        chat_id = db.get_setting("telegram_chat_id", "")
+        if token and chat_id:
+            actual_profit = (updated.get("total_sold", 0) * 0.85) - updated.get("total_spent", 0)
+            send_data = {**updated, "actual_profit": actual_profit}
+            msg = tg.format_portfolio_update("updated", updated.get("name", ""), send_data)
+            await tg.send_telegram_message(token, chat_id, msg)
+        return JSONResponse({"success": True, "message": f"✅ Сохранено", "item": updated})
+    except Exception as e:
+        return JSONResponse({"success": False, "message": f"Ошибка: {str(e)}"})
+
+
+@app.get("/api/portfolio/history")
+async def portfolio_history(limit: int = 100):
+    try:
+        history = db.get_portfolio_history(limit)
+        return JSONResponse({"success": True, "history": history})
+    except Exception as e:
+        return JSONResponse({"success": False, "message": f"Ошибка: {str(e)}"})
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host=HOST, port=PORT, reload=False)

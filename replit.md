@@ -39,14 +39,15 @@ main.py                  # FastAPI app, all routes, WebSocket, bot start validat
 steam_bot/
   __init__.py
   config.py              # Constants: commission (15%), thresholds, URLs, app IDs (440, 570, 730)
-  database.py            # MongoDB helpers: settings, items, trades, logs, api_logs
+  database.py            # MongoDB helpers: settings, items, trades, logs, api_logs, favorites, portfolio_history
   market.py              # Steam Market API: scan_market, scan_arbitrage, buy orders, anomaly detection, history analysis
   trading.py             # Bot loop, buy/sell logic, WS broadcast, mode mgmt
   telegram_bot.py        # Telegram formatters + async sender
 templates/
   dashboard.html         # Dashboard: stats, items, logs, trades
   scanner.html           # Scanner: TF2/Dota2/CS2 presets, buy orders, spread, anomalies, results
-  arbitrage.html         # Arbitrage: real-time profitability table, auto-refresh, filters, sortable columns
+  arbitrage.html         # Arbitrage: real-time profitability table, auto-refresh, filters, sortable columns, save to favorites
+  portfolio.html         # Portfolio: favorites tracking, buy orders, spending, profit calculations, Telegram notifications
   settings.html          # Settings: 5 tabs (Items, Strategy, Mode, Steam, Telegram)
 static/
   style.css              # Dark theme CSS
